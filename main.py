@@ -11,10 +11,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Define the Pydantic models
 class Message(BaseModel):
     msg: str
-    additional_prompt: Optional[str] = "remember to double check your work"
     images: Optional[List[str]] = None
     files: Optional[List[str]] = None
-    stream: Optional[bool] = False
 
 class InitializeResponse(BaseModel):
     message: str
@@ -45,7 +43,6 @@ def chat(message: Message):
         global counter
         agent.chat(
             msg=message.msg,
-            additional_prompt=message.additional_prompt,
             images=message.images,
             files=message.files,
         )
