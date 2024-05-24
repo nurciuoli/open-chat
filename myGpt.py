@@ -2,6 +2,7 @@ from openai import OpenAI
 client = OpenAI()
 import json
 import time
+from myLlama import generate
 
 # Function to encode the image into OA file format
 def encode_image_file(image_path):
@@ -71,7 +72,19 @@ def go_through_tool_actions(tool_calls,run,thread_id):
     for tool_call in tool_calls:
         function_name = json.loads(tool_call.json())['function']['name']
         print(f'cp: {function_name}')
-        tool_output_list.append({"tool_call_id": tool_call.id,"output": "the work is done and in the project folder"})
+        if function_name=='delegate_instructions':
+            files = json.loads(json.loads(tool_call.json())['function']['arguments'])['files']
+            for file in files:
+                full_filename = file['file_name']+file['file_type']
+                full_path = 'sandbox/'+full_filename
+                with open(full_path, "w") as file_out:
+                    content = generate(file['instructions'])
+                    print('cp: generating content')
+                    file_out.write(content)
+            
+            tool_output_list.append({"tool_call_id": tool_call.id,"output": f'files were successfully created'})
+        else:
+            tool_output_list.append({"tool_call_id": tool_call.id,"output": "something went wrong"})
     # Submit the collected tool outputs and return the run object
     run = client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=tool_output_list)
     print('cp: done going through tool actions')
@@ -147,7 +160,6 @@ class Agent:
         self.thread = None
         self.run=None
         self.messages=[]
-    # chat method
     
     def add_message(self,content):
         message = client.beta.threads.messages.create(
@@ -155,12 +167,10 @@ class Agent:
             role="user",
             content=content
             )
-        print('cp: msg created')
         self.messages.append(message)
 
     # chat method
     def chat(self,msg,additional_prompt = None,images=None,files=None):
-        print(f'cp: starting chat')
         if self.thread is None:
             self.thread=initialize_thread()
 

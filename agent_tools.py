@@ -19,7 +19,7 @@ delegate_instructions_json = {
                                          "description":"name and folder path of file"},
                         "file_type": {
                             "type": "string",
-                            "description": "file type ending to use (.py,.csv,.txt,ect)",
+                            "description": "file type ending to use (py,csv,txt,ect)",
                         },
                         "choices": {"type": "array", "items": {"type": "string"}},
                     },
