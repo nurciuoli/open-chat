@@ -19,19 +19,39 @@ class Message(BaseModel):
 class InitializeResponse(BaseModel):
     message: str
 
-# Initialize the agent (this would be part of your existing code)
-agent = Agent()
+def listify_msgs(messages):
+    print('cp: organizing msgs')
+    out_msgs=[]
+    for message in messages:
+        assert message.content[0].type == "text"
+        msg_value = message.content[0].text.value
+        out_msgs.append(msg_value)
+    print('cp: msgs organized')
+    return out_msgs
+
+
+from agent_tools import delegate_instructions_json
+
+agent = Agent(system_prompt="""BACKGROUND: you are a manager, your job is to delegate_instructions to a team of efficient workers
+             YOU ONLY HAVE ONE SHOT""",
+             tools=[{"type": "function", "function":delegate_instructions_json}])
+
+counter=0
 
 @app.post("/chat")
 def chat(message: Message):
     try:
         global agent
-        responses = agent.chat(
+        global counter
+        agent.chat(
             msg=message.msg,
             additional_prompt=message.additional_prompt,
             images=message.images,
             files=message.files,
         )
+        counter+=1
+        responses = listify_msgs(agent.messages)[counter:]
+        counter +=len(responses)
         return {"responses": responses}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
