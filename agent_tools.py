@@ -16,14 +16,15 @@ delegate_instructions_json = {
                         "instructions": {"type": "string",
                                          "description":"a detailed prompt describing exactly what is needed"},
                         "file_name":{"type": "string",
-                                         "description":"name and folder path of file"},
+                                         "description":"name to give file (ex. main, testing,ect)"},
                         "file_type": {
                             "type": "string",
                             "description": "file type ending to use (py,csv,txt,ect)",
                         },
+                        "job_type":{"type":"string","description":"whether the worker should create a new file or edit an existing (either NEW or EDIT)"},
                         "choices": {"type": "array", "items": {"type": "string"}},
                     },
-                    "required": ["instructions","file_name","file_type"],
+                    "required": ["instructions","file_name","file_type","job_type"],
                 },
             },
         },
@@ -32,31 +33,21 @@ delegate_instructions_json = {
 }
 
 
-get_review_json = {
-    "name": "get_review",
-    "description": "Use to get a peer review on your final work",
+get_file_contents_json = {
+    "name": "get_file_contents",
+    "description": "use this to get back the contents of a project file",
     "parameters": {
         "type": "object",
         "properties": {
-            "files": {
-                "type": "array",
-                "description": "Files to have reviewed and detailed background on the question you are asking",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "file_name_with_ext": {"type": "string",
-                                      "description":"a name and filepath for the file. EXAMPLE: main.py, poem1.txt, templates/index.html"},
-                        "content": {"type": "string",
-                                    "description":"a summary of what you want reviewed in the file"},
-                                    "choices": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": ["file_name_with_extension","content"],
-                },
+            "filename": {
+                "type": "string",
+                "description": "name of the file to return",
             },
         },
-        "required": ["files"],
+        "required": ["filename"],
     },
 }
+
 
 
 get_second_opinion_json = {

@@ -98,37 +98,6 @@ def get_run_steps(run,thread_id):
     # Retrieve and process the run steps
     return client.beta.threads.runs.steps.list(thread_id=thread_id, run_id=run.id, order="asc")
 
-def go_through_tool_actions(tool_calls,run,thread_id):
-    print('cp: going through tool actions')
-    tool_output_list = []
-    agent_files=[]
-    for tool_call in tool_calls:
-        try:
-            function_name = json.loads(tool_call.json())['function']['name']
-            print(f'cp: {function_name}')
-            if function_name=='delegate_instructions':
-                files = json.loads(json.loads(tool_call.json())['function']['arguments'])['files']
-                for file in files:
-                    full_filename = file['file_name']+"."+file['file_type']
-                    full_path = 'sandbox/'+full_filename
-                    with open(full_path, "w") as file_out:
-                        content = generate(file['instructions'])
-                        print('cp: generating content')
-                        file_out.write(content)
-                    file_out = create_file(full_path)
-                    agent_files.append(file_out.id)
-                tool_output_list.append({"tool_call_id": tool_call.id,"output": f'file/files successfully created'})
-            else:
-                tool_output_list.append({"tool_call_id": tool_call.id,"output": "something went wrong"})
-
-        except Exception as e:
-            # handle the exception
-            print(f"Failed tool call {function_name}: Caught {e.__class__.__name__}: {e}")
-        
-    client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=tool_output_list)
-    print('cp: done going through tool actions')
-    return agent_files
-
 def get_messages_from_thread(thread_id,order = 'asc'):
     return client.beta.threads.messages.list(
                 thread_id=thread_id,
@@ -148,49 +117,6 @@ def print_messages_out(messages):
     print('=========================================')
         
 
-def wait_on_run(assistant_id,thread_id,additional_instructions=None):
-        agent_files = None
-        print(f'cp: waiting on run')
-        if additional_instructions is not None:
-            run=client.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=assistant_id,
-                    additional_instructions=additional_instructions,
-                )
-        else:
-            run=client.beta.threads.runs.create(
-                    thread_id=thread_id,
-                    assistant_id=assistant_id,
-                )
-        while run.status in ["queued", "in_progress"]:
-            # Retrieve updated run status
-            run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-            # Handle completed run
-            if run.status == 'completed':
-                print('cp: run complete')
-                run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-
-
-            # Handle run that requires action
-            elif run.status == 'requires_action':
-                print('cp: requires action')
-                # Get the tool calls that require action
-                tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                # Submit the collected tool outputs and return the run object
-                agent_files = go_through_tool_actions(tool_calls=tool_calls,run=run,thread_id = thread_id)
-                run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-
-                
-
-            else:
-                # Sleep briefly to avoid spamming the API with requests
-                time.sleep(0.1)
-                run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run.id)
-            
-
-        print('cp: finished waiting')
-        return (run,agent_files)
-
 # Agent class
 class Agent:
     def __init__(self,system_prompt="You are a helpful chat based assistant",
@@ -207,6 +133,7 @@ class Agent:
         self.thread = None
         self.run=None
         self.messages=[]
+        self.file_comments=[]
         
     
     def add_message(self,content):
@@ -215,8 +142,6 @@ class Agent:
             role="user",
             content=content
             )
-        self.messages.append(message)
-
     # chat method
     def chat(self,msg,additional_prompt = None,images=None,files=None):
         if self.thread is None:
@@ -227,6 +152,90 @@ class Agent:
         else:
            content = msg
         self.add_message(content)
-        self.run,self.files =wait_on_run(self.assistant.id,self.thread.id,additional_prompt)
+        self.wait_on_run(self.thread.id,additional_prompt)
+        if self.files is not None:
+            if len(self.files)>=1:
+                self.assistant= initialize_assistant(self.name,self.system_prompt,self.tools,self.model,self.files)
         self.messages = get_messages_from_thread(self.thread.id)
         print_messages_out(self.messages)
+
+    def go_through_tool_actions(self,tool_calls,run,thread_id):
+        print('cp: going through tool actions')
+        tool_output_list = []
+        for tool_call in tool_calls:
+            try:
+                function_name = json.loads(tool_call.json())['function']['name']
+                print(f'cp: {function_name}')
+                if function_name=='delegate_instructions':
+                    files = json.loads(json.loads(tool_call.json())['function']['arguments'])['files']
+                    for file in files:
+                        full_filename = file['file_name']+"."+file['file_type']
+                        full_path = 'sandbox/'+full_filename
+
+                        if file['job_type']=='NEW':
+                            full_instructions =file['instructions']
+                        else:
+                            with open(full_path, "r") as file_in:
+                                full_instructions = "here is the current status of the file \n"+ file_in.read()
+                        print('cp: generating content')
+                        full_prompt = """PROMPT: You must repond in the following format:
+                        {"type": type of file to use (options: python, text, html,other),
+                        "content": raw content (ex: "print('hello world')"),
+                        "comments": any comments to include (ex: "install pandas, ect")}"""+full_instructions
+                        content = generate(full_prompt,format='json')
+                        print('cp: generating content')
+                        with open(full_path, "wb") as file_out:
+                            file_out.write(json.loads(content)['content'].encode())
+                            self.file_comments.append(json.loads(content)['comments'])
+                        print('cp: file created '+ full_path)
+                        file_append = create_file(full_path)
+                        self.files.append(file_append.id)
+                    tool_output_list.append({"tool_call_id": tool_call.id,"output": f'file/files successfully created'})
+                else:
+                    tool_output_list.append({"tool_call_id": tool_call.id,"output": "something went wrong please ask the user for help"})
+
+            except Exception as e:
+                # handle the exception
+                print(f"Failed tool call {function_name}: Caught {e.__class__.__name__}: {e}")
+                tool_output_list.append({"tool_call_id": tool_call.id,"output": "something went wrong please ask the user for help"})
+
+            
+        client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=tool_output_list)
+        print('cp: done going through tool actions')
+    
+    def wait_on_run(self,thread_id,additional_instructions=None):
+        print(f'cp: waiting on run')
+        if additional_instructions is not None:
+            self.run=client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=self.assistant.id,
+                    additional_instructions=additional_instructions,
+                )
+        else:
+            self.run=client.beta.threads.runs.create(
+                    thread_id=thread_id,
+                    assistant_id=self.assistant.id,
+                )
+
+        while self.run.status in ["queued", "in_progress"]:
+            # Retrieve updated run status
+            self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)
+            # Handle completed run
+
+            # Handle run that requires action
+            if self.run.status == 'requires_action':
+                print('cp: requires action')
+                # Get the tool calls that require action
+                tool_calls = self.run.required_action.submit_tool_outputs.tool_calls
+                # Submit the collected tool outputs and return the run object
+                self.go_through_tool_actions(tool_calls=tool_calls,run=self.run,thread_id = thread_id)
+                self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)                
+
+            else:
+                # Sleep briefly to avoid spamming the API with requests
+                time.sleep(0.1)
+            
+        if self.run.status == 'completed':
+            print('cp: run complete')
+            self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)
+        print('cp: finished waiting')
