@@ -89,6 +89,7 @@ def get_messages_from_thread(thread_id, order='asc'):
     )
 
 def print_messages_out(messages):
+    print_list = []
     print('=========================================')
     print("               messages ")
     print('-----------------------------------------')
@@ -97,7 +98,9 @@ def print_messages_out(messages):
         msg_value = message.content[0].text.value
         msg_role = message.role
         print(f'{msg_role}: {msg_value}')
+        print_list.append(f'{msg_role}: {msg_value}')
     print('=========================================')
+    return print_list
 
 # Agent class
 class Agent:
@@ -116,6 +119,7 @@ class Agent:
         self.run = None
         self.messages = []
         self.file_comments = []
+        self.print_messages=[]
 
     def add_message(self, content):
         message = client.beta.threads.messages.create(
@@ -139,7 +143,7 @@ class Agent:
             if len(self.files) >= 1:
                 self.assistant = initialize_assistant(self.name, self.system_prompt, self.tools, self.model, self.files)
         self.messages = get_messages_from_thread(self.thread.id)
-        print_messages_out(self.messages)
+        self.print_messages=print_messages_out(self.messages)
 
     def go_through_tool_actions(self, tool_calls, run, thread_id):
         logger.info('Going through tool actions')
@@ -179,19 +183,20 @@ class Agent:
                 thread_id=thread_id,
                 assistant_id=self.assistant.id,
             )
-
+        logger.info('Requires action')
         while self.run.status in ["queued", "in_progress"]:
             # Retrieve updated run status
             self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)
             # Handle run that requires action
             if self.run.status == 'requires_action':
-                logger.info('Requires action')
+                
                 # Get the tool calls that require action
                 tool_calls = self.run.required_action.submit_tool_outputs.tool_calls
                 # Submit the collected tool outputs and return the run object
                 self.go_through_tool_actions(tool_calls=tool_calls, run=self.run, thread_id=thread_id)
                 self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)
             else:
+                self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)
                 # Sleep briefly to avoid spamming the API with requests
                 time.sleep(0.1)
 
