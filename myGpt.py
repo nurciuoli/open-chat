@@ -203,7 +203,7 @@ class Agent:
 
     def process_delegate_instructions(self,files):
         for file in files:
-            full_filename = f"{file['file_name']}.{file['file_type']}"
+            full_filename = f"{file['file_name']}{file['file_type']}"
             full_path = f'sandbox/{full_filename}'
 
             if file['job_type'] == 'NEW':
@@ -215,7 +215,7 @@ class Agent:
             logger.info('Generating content')
             full_prompt = (
                 "PROMPT: You must respond in the following format:\n"
-                '{"type": type of file to use (options: python, text, html, other),\n'
+                '{"type": type of file to use (options: .py,.txt,ect),\n'
                 '"content": raw content (ex: "print(\'hello world\')"),\n'
                 '"comments": any comments to include (ex: "install pandas, etc")}\n' 
                 + full_instructions

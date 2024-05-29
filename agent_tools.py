@@ -19,7 +19,7 @@ delegate_instructions_json = {
                                          "description":"name to give file (ex. main, testing,ect)"},
                         "file_type": {
                             "type": "string",
-                            "description": "file type ending to use (py,csv,txt,ect)",
+                            "description": "file type ending to use (.py,.csv,.txt,ect) INCLUDE PERIOD",
                         },
                         "job_type":{"type":"string","description":"whether the worker should create a new file or edit an existing (either NEW or EDIT)"},
                         "choices": {"type": "array", "items": {"type": "string"}},
