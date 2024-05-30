@@ -3,37 +3,19 @@ from openai import OpenAI
 import json
 import time
 from myLlama import generate
+import logging
+from openai import OpenAI
+import json
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 client = OpenAI()
+# Configure logging
 
-def initialize_assistant(name, system_prompt, model, tools=None, files=[]):
-    logger.info('Initializing agent')
-    try:
-        assistant_kwargs = {
-            "name": name,
-            "instructions": system_prompt,
-            "model": model
-        }
 
-        if tools is not None:
-            assistant_kwargs["tools"] = tools
-
-        if len(files) > 0:
-            assistant_kwargs["tool_resources"] = {
-                "code_interpreter": {
-                    "file_ids": files
-                }
-            }
-
-        assistant = client.beta.assistants.create(**assistant_kwargs)
-        logger.info("Assistant initialized")
-        return assistant
-    except Exception as e:
-        logger.error(f"Failed to initialize agent: Caught {e.__class__.__name__}: {e}")
 
 def retrieve_assistant(assistant_id):
     try:
@@ -84,6 +66,15 @@ def append_content_w_images(prompt, images):
         })
     return content
 
+def list_threads():
+    try:
+        logger.info('Listing threads')
+        threads = client.beta.threads.list()
+        return threads
+    except Exception as e:
+        logger.error(f"Failed to list threads: Caught {e.__class__.__name__}: {e}")
+        return []
+
 def get_run_steps(run, thread_id):
     try:
         logger.info('getting run steps')
@@ -112,24 +103,43 @@ def print_messages(messages):
         print(f'{msg_role}: {msg_value}')
     print('=========================================')
 
+
+
+def initialize_assistant(name, system_prompt, model, tools=None, files=[]):
+    logger.info('Initializing agent')
+    try:
+        assistant_kwargs = {
+            "name": name,
+            "instructions": system_prompt,
+            "model": model
+        }
+
+        if tools is not None:
+            assistant_kwargs["tools"] = tools
+
+        if len(files) > 0:
+            assistant_kwargs["tool_resources"] = {
+                "code_interpreter": {
+                    "file_ids": files
+                }
+            }
+
+        assistant = client.beta.assistants.create(**assistant_kwargs)
+        logger.info("Assistant initialized")
+        return assistant
+    except Exception as e:
+        logger.error(f"Failed to initialize agent: Caught {e.__class__.__name__}: {e}")
+
 class Agent:
-    def __init__(self, system_prompt="You are a helpful chat based assistant",
-                 name='AgentGpt',
-                 model='gpt-3.5-turbo-1106',
-                 tools=None,
-                 files=[]):
+    def __init__(self, system_prompt, name, model):
         self.system_prompt = system_prompt
         self.name = name
         self.model = model
-        self.tools = tools
-        self.files = files
         self.assistant = None
         self.thread = None
-        self.run = None
-        self.messages = []
-        self.file_comments = []
-        self.print_messages = []
-        self.last_message_id = None  # Track the last message ID
+        self.messages=[]
+        self.files=[]
+        self.print_count=0
 
     def add_message(self, content):
         message = client.beta.threads.messages.create(
@@ -157,11 +167,13 @@ class Agent:
                 self.assistant = initialize_assistant(self.name, self.system_prompt, self.model, self.tools, self.files)
         
         # Fetch messages after the last processed message ID
-        self.messages = get_messages_from_thread(self.thread.id, self.last_message_id)
-        if self.messages:
-            self.last_message_id = self.messages[-1].id  # Update the last message ID
-        
-        self.print_messages = print_messages(self.messages)
+        self.messages = get_messages_from_thread(self.thread.id)
+        if self.print_count>0:
+            msg_out = self.messages[self.print_count:]
+        else:
+            msg_out = self.messages
+        self.print_messages = print_messages(msg_out)
+        self.print_count+=1
         
         # Return the messages for the response
         return [message.content[0].text.value for message in self.messages if message.role == 'assistant']

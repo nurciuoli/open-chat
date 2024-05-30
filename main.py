@@ -6,7 +6,8 @@ from typing import List, Dict, Any
 import logging
 import json
 import os
-from myGpt import get_messages_from_thread, initialize_assistant as init_agent, Agent
+from uuid import uuid4
+from myGpt import initialize_assistant as init_agent, Agent, initialize_thread
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -15,6 +16,9 @@ app = FastAPI()
 
 # Dictionary to store initialized agents
 agents = {}
+
+# Dictionary to store threads
+threads = {}
 
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -32,11 +36,23 @@ class AgentData(BaseModel):
 
 class Message(BaseModel):
     role: str
-    content: List[Dict[str, Any]]
+    content: List[Dict[str, Any]] = []
 
 class ChatRequest(BaseModel):
     agent_data: AgentData
     message: Message
+
+class Thread(BaseModel):
+    id: str
+    messages: List[Message] = []
+
+@app.on_event("startup")
+async def startup_event():
+    # Initialize a blank thread on startup
+    initial_thread = initialize_thread()
+    initial_thread_id = initial_thread.id
+    threads[initial_thread_id] = Thread(id=initial_thread_id)
+    logger.info(f"Initialized initial thread: {initial_thread_id}")
 
 # Initialize agent endpoint
 @app.post("/initialize_agent")
@@ -44,9 +60,16 @@ async def initialize_agent(agent_data: AgentData):
     try:
         agent = Agent(**agent_data.dict())  # Initialize the Agent class
         agent.assistant = init_agent(**agent_data.dict())  # Initialize the assistant within the Agent
+        
+        # Create a new thread for the agent
+        new_thread = initialize_thread()
+        new_thread_id = new_thread.id
+        threads[new_thread_id] = Thread(id=new_thread_id)
+        agent.thread = threads[new_thread_id]  # Assign the new thread to the agent
+        
         if agent.assistant:
             agents[agent_data.name] = agent  # Store the agent in the dictionary
-            return {"status": "success", "agent_id": agent.assistant.id}
+            return {"status": "success", "agent_id": agent.assistant.id, "thread_id": new_thread_id}
         else:
             raise HTTPException(status_code=500, detail="Failed to initialize agent")
     except Exception as e:
@@ -64,6 +87,12 @@ async def chat(request: ChatRequest):
         
         agent = agents[agent_name]
         response = agent.chat(request.message.content[0]['text'])
+        
+        # Store the message in the thread
+        thread = threads[agent.thread.id]
+        thread.messages.append(request.message)
+        thread.messages.append(Message(role="assistant", content=[{"text": response[0]}]))
+        
         logger.info(f"Chat response: {response}")
         return {"status": "success", "responses": response}
     except Exception as e:
@@ -74,13 +103,22 @@ async def chat(request: ChatRequest):
 @app.get("/messages/{thread_id}")
 async def get_messages(thread_id: str):
     try:
-        messages = get_messages_from_thread(thread_id)
-        if messages:
-            return {"status": "success", "messages": messages['data']}
+        if thread_id in threads:
+            thread = threads[thread_id]
+            return {"status": "success", "messages": thread.messages}
         else:
             raise HTTPException(status_code=404, detail="Thread not found")
     except Exception as e:
         logger.error(f"Error retrieving messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# List threads endpoint
+@app.get("/threads")
+async def get_threads():
+    try:
+        return {"status": "success", "threads": [{"id": thread.id, "messages": thread.messages} for thread in threads.values()]}
+    except Exception as e:
+        logger.error(f"Error retrieving threads: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
