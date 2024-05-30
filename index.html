@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot Interface</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Settings</h2>
+            <label for="systemPrompt">System Prompt:</label>
+            <input type="text" id="systemPrompt" value="You are a helpful chat-based assistant">
+            <label for="agentName">Agent Name:</label>
+            <input type="text" id="agentName" value="AgentGpt">
+            <label for="model">Model:</label>
+            <input type="text" id="model" value="gpt-3.5-turbo-1106">
+            <button onclick="initializeAgent()">Initialize Agent</button>
+        </div>
+        <div class="main-content">
+            <h1>Chatbot</h1>
+            <div id="messages" class="messages-section"></div>
+            <textarea id="message" placeholder="Type your message here..."></textarea>
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    <script src="/static/scripts.js"></script>
+</body>
+</html>

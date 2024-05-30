@@ -10,38 +10,7 @@ logger = logging.getLogger(__name__)
 
 client = OpenAI()
 
-def create_file(filepath, purpose='assistants'):
-    file = client.files.create(
-        file=open(filepath, "rb"),
-        purpose=purpose
-    )
-    return file
-
-# Function to encode the image into OA file format
-def encode_image_file(image_path):
-    file = client.files.create(
-        file=open(image_path, "rb"),
-        purpose="vision"
-    )
-    return file
-
-# Append image files to content list
-def append_content_w_images(prompt, images):
-    content = []  # Method 1 implementation
-    content.append({"type": "text", "text": prompt})
-    for image in images:
-        file = encode_image_file(image)
-        content.append({
-            "type": "image_file",
-            "image_file": {
-                "file_id": file.id,
-            }
-        })
-    return content
-
-# Assistant Functions
-# Initialize Assistant
-def initialize_assistant(name, system_prompt, tools, model, files):
+def initialize_assistant(name, system_prompt, model, tools=None, files=[]):
     logger.info('Initializing agent')
     try:
         assistant_kwargs = {
@@ -66,43 +35,83 @@ def initialize_assistant(name, system_prompt, tools, model, files):
     except Exception as e:
         logger.error(f"Failed to initialize agent: Caught {e.__class__.__name__}: {e}")
 
+def retrieve_assistant(assistant_id):
+    try:
+        logger.info('retrieving assistant')
+        return client.beta.assistants.retrieve(assistant_id=assistant_id)
+    except Exception as e:
+        logger.error(f"Failed to retrieve assistant: Caught {e.__class__.__name__}: {e}")
 
-# Initialize Thread
+def retrieve_thread(thread_id):
+    try:
+        logger.info('retrieving thread')
+        return client.beta.threads.retrieve(thread_id=thread_id)
+    except Exception as e:
+        logger.error(f"Failed to retrieve thread: Caught {e.__class__.__name__}: {e}")
+
 def initialize_thread():
     try:
         logger.info('Creating thread')
         thread = client.beta.threads.create()
-        logger.info('Thread created')
         return thread
     except Exception as e:
         logger.error(f"Failed to initialize thread: Caught {e.__class__.__name__}: {e}")
 
-# run steps
-def get_run_steps(run, thread_id):
-    # Retrieve and process the run steps
-    return client.beta.threads.runs.steps.list(thread_id=thread_id, run_id=run.id, order="asc")
-
-def get_messages_from_thread(thread_id, order='asc'):
-    return client.beta.threads.messages.list(
-        thread_id=thread_id,
-        order=order,
+def create_file(filepath, purpose='assistants'):
+    file = client.files.create(
+        file=open(filepath, "rb"),
+        purpose=purpose
     )
+    return file
 
-def print_messages_out(messages):
-    print_list = []
+def encode_image_file(image_path):
+    file = client.files.create(
+        file=open(image_path, "rb"),
+        purpose="vision"
+    )
+    return file
+
+def append_content_w_images(prompt, images):
+    content = []
+    content.append({"type": "text", "text": prompt})
+    for image in images:
+        file = encode_image_file(image)
+        content.append({
+            "type": "image_file",
+            "image_file": {
+                "file_id": file.id,
+            }
+        })
+    return content
+
+def get_run_steps(run, thread_id):
+    try:
+        logger.info('getting run steps')
+        return client.beta.threads.runs.steps.list(thread_id=thread_id, run_id=run.id, order="asc")
+    except Exception as e:
+        logger.error(f"Failed to get run steps: Caught {e.__class__.__name__}: {e}")
+
+def get_messages_from_thread(thread_id, after=None, order='asc'):
+    params = {
+        "thread_id": thread_id,
+        "order": order,
+    }
+    if after:
+        params["after"] = after
+
+    messages_page = client.beta.threads.messages.list(**params)
+    return list(messages_page)
+
+def print_messages(messages):
     print('=========================================')
     print("               messages ")
     print('-----------------------------------------')
     for message in messages:
-        assert message.content[0].type == "text"
         msg_value = message.content[0].text.value
         msg_role = message.role
         print(f'{msg_role}: {msg_value}')
-        print_list.append(f'{msg_role}: {msg_value}')
     print('=========================================')
-    return print_list
 
-# Agent class
 class Agent:
     def __init__(self, system_prompt="You are a helpful chat based assistant",
                  name='AgentGpt',
@@ -114,12 +123,13 @@ class Agent:
         self.model = model
         self.tools = tools
         self.files = files
-        self.assistant = initialize_assistant(name, system_prompt, tools, model, files)
+        self.assistant = None
         self.thread = None
         self.run = None
         self.messages = []
         self.file_comments = []
-        self.print_messages=[]
+        self.print_messages = []
+        self.last_message_id = None  # Track the last message ID
 
     def add_message(self, content):
         message = client.beta.threads.messages.create(
@@ -127,28 +137,38 @@ class Agent:
             role="user",
             content=content
         )
+        if not isinstance(self.messages, list):
+            self.messages = []
+        self.messages.append(message)
 
-    # chat method
     def chat(self, msg, additional_prompt=None, images=None, files=None):
+        if self.assistant is None:
+            logger.info('no assistant found')
+            self.assistant = initialize_assistant(self.name, self.system_prompt, self.model, self.tools, self.files)
+
         if self.thread is None:
+            logger.info('no thread found')
             self.thread = initialize_thread()
 
-        if images is not None:
-            content = append_content_w_images(msg, images)
-        else:
-            content = msg
-        self.add_message(content)
+        self.add_message(msg)
         self.wait_on_run(self.thread.id, additional_prompt)
         if self.files is not None:
             if len(self.files) >= 1:
-                self.assistant = initialize_assistant(self.name, self.system_prompt, self.tools, self.model, self.files)
-        self.messages = get_messages_from_thread(self.thread.id)
-        self.print_messages=print_messages_out(self.messages)
+                self.assistant = initialize_assistant(self.name, self.system_prompt, self.model, self.tools, self.files)
+        
+        # Fetch messages after the last processed message ID
+        self.messages = get_messages_from_thread(self.thread.id, self.last_message_id)
+        if self.messages:
+            self.last_message_id = self.messages[-1].id  # Update the last message ID
+        
+        self.print_messages = print_messages(self.messages)
+        
+        # Return the messages for the response
+        return [message.content[0].text.value for message in self.messages if message.role == 'assistant']
 
     def go_through_tool_actions(self, tool_calls, run, thread_id):
         logger.info('Going through tool actions')
         tool_output_list = []
-        
         
         for tool_call in tool_calls:
             try:
@@ -168,7 +188,6 @@ class Agent:
         
         client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id, run_id=run.id, tool_outputs=tool_output_list)
         logger.info('Done going through tool actions')
-
 
     def wait_on_run(self, thread_id, additional_instructions=None):
         logger.info('Waiting on run')
@@ -205,8 +224,7 @@ class Agent:
             self.run = client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=self.run.id)
         logger.info('Finished waiting')
 
-
-    def process_delegate_instructions(self,files):
+    def process_delegate_instructions(self, files):
         for file in files:
             full_filename = f"{file['file_name']}{file['file_type']}"
             full_path = f'sandbox/{full_filename}'

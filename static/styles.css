@@ -1,49 +1,70 @@
 body {
     font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
     margin: 0;
-    padding: 20px;
 }
 
 .container {
-    max-width: 600px;
-    margin: auto;
-    background: #fff;
+    display: flex;
+    width: 90%;
+    height: 90%;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.sidebar, .messages-section {
+    flex: 1;
     padding: 20px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    background-color: #f4f4f4;
+    border-right: 1px solid #ccc;
 }
 
-h1 {
-    text-align: center;
+.main-content {
+    flex: 2;
+    padding: 20px;
 }
 
-div {
-    margin-bottom: 10px;
+h1, h2 {
+    margin: 0 0 20px;
 }
 
 label {
     display: block;
-    margin-bottom: 5px;
+    margin: 10px 0 5px;
 }
 
-input, textarea {
+input[type="text"],
+textarea {
     width: 100%;
     padding: 10px;
-    box-sizing: border-box;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
 }
 
 button {
     padding: 10px 20px;
-    background: #007bff;
-    color: #fff;
     border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
     cursor: pointer;
+    margin-bottom: 20px;
 }
 
 button:hover {
-    background: #0056b3;
+    background-color: #45a049;
 }
 
 #response, #messages {
-    margin-top: 20px;
+    white-space: pre-wrap;
+    background-color: #f9f9f9;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-top: 10px;
 }

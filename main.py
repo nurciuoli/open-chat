@@ -1,153 +1,87 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from typing import List
-import os
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from typing import List, Dict, Any
 import logging
+import json
+import os
+from myGpt import get_messages_from_thread, initialize_assistant as init_agent, Agent
 
-from services import (
-    initialize_agent,
-    handle_chat,
-    save_chat_session,
-    save_agent_template,
-    load_message_history,
-    load_agent_templates
-)
-from utils import get_file_content
-from myGpt import Agent, get_messages_from_thread
-from schemas import AgentData, ChatRequest
-
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Dictionary to store initialized agents
+agents = {}
+
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-if not os.path.exists('data'):
-    os.makedirs('data')
+# Serve index.html at the root URL
+@app.get("/")
+async def read_index():
+    return FileResponse('index.html')
 
+# Define Pydantic models
+class AgentData(BaseModel):
+    system_prompt: str
+    name: str
+    model: str
 
-def list_messages_out(messages):
-    print_list = []
-    for message in messages:
-        assert message.content[0].type == "text"
-        msg_value = message.content[0].text.value
-        msg_role = message.role
-        print_list.append(f'{msg_role}: {msg_value}')
-    return print_list
+class Message(BaseModel):
+    role: str
+    content: List[Dict[str, Any]]
 
+class ChatRequest(BaseModel):
+    agent_data: AgentData
+    message: Message
 
-
+# Initialize agent endpoint
 @app.post("/initialize_agent")
-async def initialize_agent_endpoint(agent_data: AgentData):
+async def initialize_agent(agent_data: AgentData):
     try:
-        agent = Agent(system_prompt=agent_data.system_prompt,
-                      name=agent_data.name,
-                      model=agent_data.model)
-        if agent:
-            return {"message": "Agent initialized successfully"}
+        agent = Agent(**agent_data.dict())  # Initialize the Agent class
+        agent.assistant = init_agent(**agent_data.dict())  # Initialize the assistant within the Agent
+        if agent.assistant:
+            agents[agent_data.name] = agent  # Store the agent in the dictionary
+            return {"status": "success", "agent_id": agent.assistant.id}
         else:
             raise HTTPException(status_code=500, detail="Failed to initialize agent")
     except Exception as e:
-        logger.error(f"Exception during agent initialization: {e}")
-        raise HTTPException(status_code=500, detail="Failed to initialize agent")
-    
+        logger.error(f"Error initializing agent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-
+# Chat endpoint
 @app.post("/chat")
-async def chat_endpoint(request: ChatRequest):
+async def chat(request: ChatRequest):
     try:
-        agent_data = request.agent_data.dict()
-        msg = request.msg
-        agent = handle_chat(agent_data, msg)
-        if agent:
-            thread_id = agent.thread.id  # Assuming there's a method to get the thread ID
-            save_chat_session(thread_id)
-            formatted_messages = list_messages_out(agent.messages)  # Format the messages
-            return {"message": "Chat processed", "response": formatted_messages}
-        else:
-            raise HTTPException(status_code=500, detail="Chat processing failed")
+        logger.info(f"Received chat request: {request.json()}")
+        agent_name = request.agent_data.name
+        if agent_name not in agents:
+            raise HTTPException(status_code=404, detail="Agent not found. Please initialize the agent first.")
+        
+        agent = agents[agent_name]
+        response = agent.chat(request.message.content[0]['text'])
+        logger.info(f"Chat response: {response}")
+        return {"status": "success", "responses": response}
     except Exception as e:
-        logger.error(f"Exception during chat processing: {e}")
-        raise HTTPException(status_code=500, detail="Chat processing failed")
+        logger.error(f"Error during chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.post("/save_template")
-async def save_template(template_data: AgentData):
-    try:
-        save_agent_template(template_data.dict())
-        return {"message": "Template saved successfully"}
-    except Exception as e:
-        logger.error(f"Exception saving template: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save template")
-
-
-@app.get("/templates")
-async def get_templates():
-    try:
-        templates = load_agent_templates()
-        return {"templates": templates}
-    except Exception as e:
-        logger.error(f"Exception retrieving templates: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load templates")
-
-
-@app.get("/files/{filename}")
-async def get_file_content_endpoint(filename: str):
-    try:
-        content = get_file_content(filename)
-        if content:
-            return {"content": content}
-        else:
-            raise HTTPException(status_code=404, detail="File not found")
-    except Exception as e:
-        logger.error(f"Exception retrieving file content: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve file content")
-
-
-@app.get("/", response_class=HTMLResponse)
-async def get_index():
-    try:
-        with open("static/index.html") as f:
-            return HTMLResponse(content=f.read(), status_code=200)
-    except Exception as e:
-        logger.error(f"Exception serving index.html: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load index page")
-if not os.path.exists('data'):
-    os.makedirs('data')
-
+# Retrieve messages endpoint
 @app.get("/messages/{thread_id}")
 async def get_messages(thread_id: str):
     try:
-        messages = get_messages_from_thread_retrieve(thread_id)
-        out_messages = list_messages_out(messages)
-        return {"messages": out_messages}
-    except Exception as e:
-        logger.error(f"Exception retrieving messages: {e}")
-        raise HTTPException(status_code=404, detail="No message history found for this thread_id")
-
-def get_messages_from_thread_retrieve(thread_id: str):
-    try:
-        messages = [
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": {"value": "Create 3 data visualizations based on the trends in this file."}}],
-                "attachments": [
-                    {
-                        "file_id": "file_id_example",
-                        "tools": [{"type": "code_interpreter"}]
-                    }
-                ]
-            }
-        ]
-        return messages
+        messages = get_messages_from_thread(thread_id)
+        if messages:
+            return {"status": "success", "messages": messages['data']}
+        else:
+            raise HTTPException(status_code=404, detail="Thread not found")
     except Exception as e:
         logger.error(f"Error retrieving messages: {e}")
-        raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
