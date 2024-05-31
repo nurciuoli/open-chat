@@ -1,134 +1,15 @@
 import logging
-from openai import OpenAI
 import json
 import time
-from myLlama import generate
+from agents.oa.api import initialize_thread, get_messages_from_thread,initialize_assistant, list_threads, get_run_steps
+from agents.oa.utils import create_file, encode_image_file, append_content_w_images
+from agents.myLlama import generate
 import logging
 from openai import OpenAI
-import json
-import time
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 client = OpenAI()
-# Configure logging
 
-
-
-def retrieve_assistant(assistant_id):
-    try:
-        logger.info('retrieving assistant')
-        return client.beta.assistants.retrieve(assistant_id=assistant_id)
-    except Exception as e:
-        logger.error(f"Failed to retrieve assistant: Caught {e.__class__.__name__}: {e}")
-
-def retrieve_thread(thread_id):
-    try:
-        logger.info('retrieving thread')
-        return client.beta.threads.retrieve(thread_id=thread_id)
-    except Exception as e:
-        logger.error(f"Failed to retrieve thread: Caught {e.__class__.__name__}: {e}")
-
-def initialize_thread():
-    try:
-        logger.info('Creating thread')
-        thread = client.beta.threads.create()
-        return thread
-    except Exception as e:
-        logger.error(f"Failed to initialize thread: Caught {e.__class__.__name__}: {e}")
-
-def create_file(filepath, purpose='assistants'):
-    file = client.files.create(
-        file=open(filepath, "rb"),
-        purpose=purpose
-    )
-    return file
-
-def encode_image_file(image_path):
-    file = client.files.create(
-        file=open(image_path, "rb"),
-        purpose="vision"
-    )
-    return file
-
-def append_content_w_images(prompt, images):
-    content = []
-    content.append({"type": "text", "text": prompt})
-    for image in images:
-        file = encode_image_file(image)
-        content.append({
-            "type": "image_file",
-            "image_file": {
-                "file_id": file.id,
-            }
-        })
-    return content
-
-def list_threads():
-    try:
-        logger.info('Listing threads')
-        threads = client.beta.threads.list()
-        return threads
-    except Exception as e:
-        logger.error(f"Failed to list threads: Caught {e.__class__.__name__}: {e}")
-        return []
-
-def get_run_steps(run, thread_id):
-    try:
-        logger.info('getting run steps')
-        return client.beta.threads.runs.steps.list(thread_id=thread_id, run_id=run.id, order="asc")
-    except Exception as e:
-        logger.error(f"Failed to get run steps: Caught {e.__class__.__name__}: {e}")
-
-def get_messages_from_thread(thread_id, after=None, order='asc'):
-    params = {
-        "thread_id": thread_id,
-        "order": order,
-    }
-    if after:
-        params["after"] = after
-
-    messages_page = client.beta.threads.messages.list(**params)
-    return list(messages_page)
-
-def print_messages(messages):
-    print('=========================================')
-    print("               messages ")
-    print('-----------------------------------------')
-    for message in messages:
-        msg_value = message.content[0].text.value
-        msg_role = message.role
-        print(f'{msg_role}: {msg_value}')
-    print('=========================================')
-
-
-
-def initialize_assistant(name, system_prompt, model, tools=None, files=[]):
-    logger.info('Initializing agent')
-    try:
-        assistant_kwargs = {
-            "name": name,
-            "instructions": system_prompt,
-            "model": model
-        }
-
-        if tools is not None:
-            assistant_kwargs["tools"] = tools
-
-        if len(files) > 0:
-            assistant_kwargs["tool_resources"] = {
-                "code_interpreter": {
-                    "file_ids": files
-                }
-            }
-
-        assistant = client.beta.assistants.create(**assistant_kwargs)
-        logger.info("Assistant initialized")
-        return assistant
-    except Exception as e:
-        logger.error(f"Failed to initialize agent: Caught {e.__class__.__name__}: {e}")
+logger = logging.getLogger(__name__)
 
 class Agent:
     def __init__(self, system_prompt, name, model):
@@ -137,9 +18,10 @@ class Agent:
         self.model = model
         self.assistant = None
         self.thread = None
-        self.messages=[]
-        self.files=[]
-        self.print_count=0
+        self.messages = []
+        self.files = []
+        self.print_count = 0
+        self.tools = None
 
     def add_message(self, content):
         message = client.beta.threads.messages.create(
@@ -168,15 +50,11 @@ class Agent:
         
         # Fetch messages after the last processed message ID
         self.messages = get_messages_from_thread(self.thread.id)
-        if self.print_count>0:
-            msg_out = self.messages[self.print_count:]
-        else:
-            msg_out = self.messages
-        self.print_messages = print_messages(msg_out)
-        self.print_count+=1
-        
+
+        out_messages = [message.content[0].text.value for message in self.messages if message.role == 'assistant'][self.print_count:]
+        self.print_count += 1
         # Return the messages for the response
-        return [message.content[0].text.value for message in self.messages if message.role == 'assistant']
+        return out_messages
 
     def go_through_tool_actions(self, tool_calls, run, thread_id):
         logger.info('Going through tool actions')

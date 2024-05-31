@@ -1,14 +1,13 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from typing import List, Dict, Any
 import logging
 import json
 import os
 from uuid import uuid4
-from myGpt import initialize_assistant as init_agent, Agent, initialize_thread
-
+from agents.oa.api import initialize_assistant as init_agent, initialize_thread
+from agents.oa.agent import Agent
+from models.schemas import AgentData, Message, ChatRequest, Thread
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -28,23 +27,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def read_index():
     return FileResponse('index.html')
 
-# Define Pydantic models
-class AgentData(BaseModel):
-    system_prompt: str
-    name: str
-    model: str
-
-class Message(BaseModel):
-    role: str
-    content: List[Dict[str, Any]] = []
-
-class ChatRequest(BaseModel):
-    agent_data: AgentData
-    message: Message
-
-class Thread(BaseModel):
-    id: str
-    messages: List[Message] = []
 
 @app.on_event("startup")
 async def startup_event():

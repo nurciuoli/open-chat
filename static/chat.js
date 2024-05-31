@@ -1,34 +1,3 @@
-
-async function initializeAgent() {
-    const agentData = {
-        system_prompt: document.getElementById('systemPrompt').value,
-        name: document.getElementById('agentName').value,
-        model: document.getElementById('model').value
-    };
-
-    try {
-        const response = await fetch('/initialize_agent', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(agentData)
-        });
-
-        const data = await response.json();
-        if (response.ok) {
-            console.log('Agent initialized:', data);
-            alert('Agent initialized successfully');
-        } else {
-            console.error('Failed to initialize agent:', data);
-            alert('Failed to initialize agent');
-        }
-    } catch (error) {
-        console.error('Error initializing agent:', error);
-        alert('Error initializing agent');
-    }
-}
-
 async function sendMessage() {
     const agentData = {
         system_prompt: document.getElementById('systemPrompt').value,
@@ -101,38 +70,3 @@ try {
 }
 }
 
-async function getThreads() {
-try {
-    const response = await fetch('/threads', {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    });
-
-    const data = await response.json();
-    console.log('Fetched threads data:', data); // Add this line to debug
-
-    if (response.ok) {
-        console.log('Threads retrieved:', data);
-        const threadsDiv = document.getElementById('threads');
-        threadsDiv.innerHTML = ''; // Clear previous threads
-        data.threads.forEach(thread => {
-            const threadElement = document.createElement('div');
-            threadElement.className = 'thread';
-            threadElement.innerText = `Thread ID: ${thread.id}`;
-            threadElement.onclick = () => getMessages(thread.id);
-            threadsDiv.appendChild(threadElement);
-        });
-    } else {
-        console.error('Failed to retrieve threads:', data);
-        alert('Failed to retrieve threads');
-    }
-} catch (error) {
-    console.error('Error retrieving threads:', error);
-    alert('Error retrieving threads');
-}
-}
-
-// Fetch threads on page load
-window.onload = getThreads;
