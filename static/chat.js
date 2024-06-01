@@ -33,7 +33,6 @@ async function sendMessage() {
                 messagesDiv.innerHTML += `<div><strong>Assistant:</strong> ${response}</div>`;
             });
             document.getElementById('message').value = ''; // Clear the input field
-            fetchThreads(); 
         } else {
             console.error('Failed to process chat:', data);
             alert('Failed to process chat');
