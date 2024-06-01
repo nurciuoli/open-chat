@@ -1,7 +1,7 @@
 import logging
 import json
 import time
-from agents.oa.api import initialize_thread, get_messages_from_thread,initialize_assistant, list_threads, get_run_steps
+from agents.oa.api import initialize_thread, get_messages_from_thread,initialize_assistant, list_threads, get_run_steps,retrieve_assistant,retrieve_thread
 from agents.oa.utils import create_file, encode_image_file, append_content_w_images
 from agents.myLlama import generate
 import logging
@@ -22,6 +22,19 @@ class Agent:
         self.files = []
         self.print_count = 0
         self.tools = None
+
+    def to_dict(self):
+        # Implement serialization logic
+        return {
+            "assistant_id": self.assistant.id,
+            "thread_id": self.thread.id,
+        }
+    
+    def from_dict(self,agentdata):
+        self.assistant = retrieve_assistant(agentdata['assistant_id'])
+        self.thread = retrieve_thread(agentdata['thread_id'])
+        self.messages = get_messages_from_thread(self.thread.id)
+
 
     def add_message(self, content):
         message = client.beta.threads.messages.create(

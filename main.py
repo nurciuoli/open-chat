@@ -27,15 +27,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def read_index():
     return FileResponse('index.html')
 
-
-@app.on_event("startup")
-async def startup_event():
-    # Initialize a blank thread on startup
-    initial_thread = initialize_thread()
-    initial_thread_id = initial_thread.id
-    threads[initial_thread_id] = Thread(id=initial_thread_id)
-    logger.info(f"Initialized initial thread: {initial_thread_id}")
-
 # Initialize agent endpoint
 @app.post("/initialize_agent")
 async def initialize_agent(agent_data: AgentData):
@@ -51,6 +42,7 @@ async def initialize_agent(agent_data: AgentData):
         
         if agent.assistant:
             agents[agent_data.name] = agent  # Store the agent in the dictionary
+
             return {"status": "success", "agent_id": agent.assistant.id, "thread_id": new_thread_id}
         else:
             raise HTTPException(status_code=500, detail="Failed to initialize agent")
@@ -61,6 +53,8 @@ async def initialize_agent(agent_data: AgentData):
 # Chat endpoint
 @app.post("/chat")
 async def chat(request: ChatRequest):
+    global threads
+    global agents
     try:
         logger.info(f"Received chat request: {request.json()}")
         agent_name = request.agent_data.name
@@ -80,28 +74,8 @@ async def chat(request: ChatRequest):
     except Exception as e:
         logger.error(f"Error during chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
 
-# Retrieve messages endpoint
-@app.get("/messages/{thread_id}")
-async def get_messages(thread_id: str):
-    try:
-        if thread_id in threads:
-            thread = threads[thread_id]
-            return {"status": "success", "messages": thread.messages}
-        else:
-            raise HTTPException(status_code=404, detail="Thread not found")
-    except Exception as e:
-        logger.error(f"Error retrieving messages: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# List threads endpoint
-@app.get("/threads")
-async def get_threads():
-    try:
-        return {"status": "success", "threads": [{"id": thread.id, "messages": thread.messages} for thread in threads.values()]}
-    except Exception as e:
-        logger.error(f"Error retrieving threads: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
