@@ -1,82 +1,96 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-import logging
-import json
+import streamlit as st
 import os
-from uuid import uuid4
-from agents.oa.api import initialize_assistant as init_agent, initialize_thread
-from agents.oa.agent import Agent
-from models.schemas import AgentData, Message, ChatRequest, Thread
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from agents.myLlama import Agent as LlamaAgent
+from agents.myGemini import Agent as GeminiAgent
+from agents.myClaude import Agent as ClaudeAgent
+from agents.myGpt import Agent as GptAgent
+# App title
+from models import model_ids
 
-app = FastAPI()
 
-# Dictionary to store initialized agents
-agents = {}
+agent_classes = {
+    'llama': LlamaAgent,
+    'gemini': GeminiAgent,
+    'claude': ClaudeAgent,
+    'gpt': GptAgent,
+}
 
-# Dictionary to store threads
-threads = {}
+st.set_page_config(page_title="💬 My Chatbot")
 
-# Serve static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Replicate Credentials
+with st.sidebar:
+    st.title('💬 My Chatbot')
+    st.write('Fun little chatbot project')
+    st.subheader('Models and parameters')
+    selected_model = st.sidebar.selectbox('Choose a model', list(model_ids.keys()), key='selected_model')
+    maxt=model_ids[selected_model]['max']
+    system_prompt = st.sidebar.text_input('System Prompt', value = "You are a helpful assistant")
+    temperature = st.sidebar.slider('temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01)
+    #top_p = st.sidebar.slider('top_p', min_value=0.01, max_value=1.0, value=0.9, step=0.01)
+    max_length = st.sidebar.slider('max_length', min_value=32, max_value=maxt, value=1000, step=8)
+    #st.markdown('📖 Learn how to build this app in this')
 
-# Serve index.html at the root URL
-@app.get("/")
-async def read_index():
-    return FileResponse('index.html')
+# Store LLM generated responses
+if "messages" not in st.session_state.keys():
+    st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
 
-# Initialize agent endpoint
-@app.post("/initialize_agent")
-async def initialize_agent(agent_data: AgentData):
+# Display or clear chat messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+
+def clear_chat_history():
     try:
-        agent = Agent(**agent_data.dict())  # Initialize the Agent class
-        agent.assistant = init_agent(**agent_data.dict())  # Initialize the assistant within the Agent
-        
-        # Create a new thread for the agent
-        new_thread = initialize_thread()
-        new_thread_id = new_thread.id
-        threads[new_thread_id] = Thread(id=new_thread_id)
-        agent.thread = threads[new_thread_id]  # Assign the new thread to the agent
-        
-        if agent.assistant:
-            agents[agent_data.name] = agent  # Store the agent in the dictionary
-
-            return {"status": "success", "agent_id": agent.assistant.id, "thread_id": new_thread_id}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to initialize agent")
-    except Exception as e:
-        logger.error(f"Error initializing agent: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# Chat endpoint
-@app.post("/chat")
-async def chat(request: ChatRequest):
-    global threads
-    global agents
-    try:
-        logger.info(f"Received chat request: {request.json()}")
-        agent_name = request.agent_data.name
-        if agent_name not in agents:
-            raise HTTPException(status_code=404, detail="Agent not found. Please initialize the agent first.")
-        
-        agent = agents[agent_name]
-        response = agent.chat(request.message.content[0]['text'])
-        
-        # Store the message in the thread
-        thread = threads[agent.thread.id]
-        thread.messages.append(request.message)
-        thread.messages.append(Message(role="assistant", content=[{"text": response[0]}]))
-        
-        logger.info(f"Chat response: {response}")
-        return {"status": "success", "responses": response}
-    except Exception as e:
-        logger.error(f"Error during chat: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
     
+        if "agent" in st.session_state.keys():
+            st.session_state.pop('agent')
+    except:
+        print('failed to clear chat')
+st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
+# Function for generating response
+def generate_response(prompt_input):
+    try:
+        if "agent" not in st.session_state.keys():
+            AgentClass = agent_classes[model_ids[selected_model]['vendor']]
+            try:
+                st.session_state.agent = AgentClass(model = selected_model,
+                                                    max_tokens=max_length,
+                                                    temperature=temperature,
+                                                    system_prompt=system_prompt)
+            except:
+                print('failed to initiate agent')
+        #st.session_state.agent.chat(prompt_input,options)
+        st.session_state.agent.chat(prompt_input)
+        output = st.session_state.agent.messages[-1]['content']
+        if model_ids[selected_model]['vendor']=='gpt':
+            output_txt=""
+            for out_msg in output:
+                output_txt+=out_msg['text']['value']
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+            output=output_txt
+    except:
+        output = 'Sorry please try again'
+    
+    return f'Assistant: {output}'
+
+# User-provided prompt
+if prompt := st.chat_input():
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.write(prompt)
+
+# Generate a new response if last message is not from assistant
+if st.session_state.messages[-1]["role"] != "assistant":
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking..."):
+            response = generate_response(prompt)
+            placeholder = st.empty()
+            full_response = ''
+            for item in response:
+                full_response += item
+                placeholder.markdown(full_response)
+            placeholder.markdown(full_response)
+    message = {"role": "assistant", "content": full_response}
+    st.session_state.messages.append(message)

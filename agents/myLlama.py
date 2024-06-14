@@ -25,8 +25,12 @@ def generate_w_images(prompt,images,stream=True):
 
 # agent class framework
 class Agent:
-    def __init__(self,system_prompt = 'You are a helpful chat based assistant'):
+    def __init__(self,model='llama3',system_prompt = 'You are a helpful chat based assistant',
+                 max_tokens=8000,temperature=0.5):
         self.system_prompt = system_prompt
+        self.max_tokens=max_tokens
+        self.temperature = temperature
+        self.model=model
         self.messages=[
     {
         'role': 'system',
@@ -35,10 +39,21 @@ class Agent:
     ]
     #chat with agent and continue conversation
     def chat(self,user_msg):
+        print('llama chat')
+
+        options = {'num_predict':self.max_tokens,
+                   'temperature':self.temperature}
+
         self.messages.append(
         {
             'role': 'user',
             'content': user_msg,
         })
-        response=o.chat('llama3', messages=self.messages, stream=False)
+        response=o.chat(self.model, messages=self.messages, stream=False,options=options)
+        self.messages.append(
+        {
+            'role': 'assistant',
+            'content': response['message']['content'],
+        })
+
         return response['message']['content']
