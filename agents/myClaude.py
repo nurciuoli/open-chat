@@ -76,7 +76,8 @@ class Agent:
         for message in response:
             message_json = json.loads(message.json())
             if(json_mode==True):
-                print(json.loads("{"+json.loads(self.response[0].json())['text']))
+                temp_response = "{"+json.loads(self.response[0].json())['text']
+                self.messages[-1] = {'role':self.name,'content':temp_response}
             elif(list(message_json.keys())[0]=='text'):
                 print(message_json['text'])
                 self.messages.append({'role':self.name,'content':message_json['text']})

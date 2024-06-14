@@ -64,12 +64,12 @@ def generate_response(prompt_input):
         #st.session_state.agent.chat(prompt_input,options)
         st.session_state.agent.chat(prompt_input)
         output = st.session_state.agent.messages[-1]['content']
-        if model_ids[selected_model]['vendor']=='gpt':
-            output_txt=""
-            for out_msg in output:
-                output_txt+=out_msg['text']['value']
+        #if model_ids[selected_model]['vendor']=='gpt':
+        #    output_txt=""
+        #    for out_msg in output:
+        #        output_txt+=out_msg['text']['value']#
 
-            output=output_txt
+        #    output=output_txt
     except:
         output = 'Sorry please try again'
     

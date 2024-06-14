@@ -31,6 +31,7 @@ class Agent:
         self.max_tokens=max_tokens
         self.temperature = temperature
         self.model=model
+        self.response=None
         self.messages=[
     {
         'role': 'system',
@@ -38,9 +39,14 @@ class Agent:
     },
     ]
     #chat with agent and continue conversation
-    def chat(self,user_msg):
+    def chat(self,user_msg,json_mode=False):
         print('llama chat')
 
+
+        if json_mode==True:
+            out_format='json'
+        else:
+            out_format=''
         options = {'num_predict':self.max_tokens,
                    'temperature':self.temperature}
 
@@ -49,11 +55,11 @@ class Agent:
             'role': 'user',
             'content': user_msg,
         })
-        response=o.chat(self.model, messages=self.messages, stream=False,options=options)
+        self.response=o.chat(self.model, messages=self.messages, stream=False,options=options,format=out_format)
         self.messages.append(
         {
             'role': 'assistant',
-            'content': response['message']['content'],
+            'content': self.response['message']['content'],
         })
 
-        return response['message']['content']
+        return self.response['message']['content']

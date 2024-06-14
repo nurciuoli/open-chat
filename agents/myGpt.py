@@ -13,14 +13,23 @@ def encode_image(image_path):
     return base64.b64encode(image_file.read()).decode('utf-8')
   
 
-def submit_message(assistant_id, thread, user_message):
-    client.beta.threads.messages.create(
-        thread_id=thread.id, role="user", content=user_message
-    )
-    return client.beta.threads.runs.create(
-        thread_id=thread.id,
-        assistant_id=assistant_id,
-    )
+def submit_message(assistant_id, thread, user_message,response_format = None):
+    if response_format:
+        client.beta.threads.messages.create(
+            thread_id=thread.id, role="user", content=user_message,
+        )
+        return client.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=assistant_id,response_format=response_format,
+        )
+    else:
+        client.beta.threads.messages.create(
+            thread_id=thread.id, role="user", content=user_message
+        )
+        return client.beta.threads.runs.create(
+            thread_id=thread.id,
+            assistant_id=assistant_id,
+        )
 
 def get_response(thread):
     return client.beta.threads.messages.list(thread_id=thread.id, order="asc")
@@ -38,7 +47,7 @@ def pretty_print(messages):
     print("# Messages")
     for m in messages:
         print(f"{m.role}: {m.content[0].text.value}")
-        out_txt.append({f"{m.role}: {m.content[0].text.value}"})
+        out_txt.append({"role":f"{m.role}","content":f"{m.content[0].text.value}"})
     return out_txt
 
 
@@ -61,7 +70,7 @@ class Agent:
         self.temperature = temperature
         """Initializes the object"""
         # Initialize instance variables here
-        self.messages=[]
+        self.history=[]
         self.model=model
         self.response=None
         self.assistant = client.beta.assistants.create(
@@ -79,9 +88,10 @@ class Agent:
         self.run=None
         self.thread=None
         self.response=None
+        self.messages=None
 
 
-    def chat(self,prompt,images=None):
+    def chat(self,prompt,images=None,json_mode=False):
         print('gpt chat')
 
         if not self.thread:
@@ -97,10 +107,16 @@ class Agent:
                 "image_url": {
                     "url": f"data:image/jpeg;base64,{image}",
                 }})
-        self.run = submit_message(self.assistant.id, self.thread, content)
+
+        if json_mode==True:
+            response_format = { "type": "json_object" }
+        else:
+            response_format=None
+
+        self.run = submit_message(self.assistant.id, self.thread, content,response_format)
 
         self.run=wait_on_run(self.run,self.thread)
         self.response=get_response(self.thread)
-        pretty_print(self.response)
-        self.messages=self.response.to_dict()['data']
+        self.messages=pretty_print(self.response)
+        self.history=self.response.to_dict()['data']
                 
