@@ -74,7 +74,7 @@ class Agent:
 
         # Only add the system prompt if the messages list is empty
         if not self.messages:
-            self.messages.append({'role': 'system', 'content': system_prompt})
+            self.messages.append({'role': 'assistant', 'content': system_prompt})
         logging.info(f"Agent initialized with model {model}.")
 
     def chat(self, user_msg, json_mode=False):
