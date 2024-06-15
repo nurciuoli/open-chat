@@ -22,13 +22,32 @@ with st.sidebar:
     st.title('💬 My Chatbot')
     st.write('Fun little chatbot project')
     st.subheader('Models and parameters')
-    selected_model = st.sidebar.selectbox('Choose a model', list(model_ids.keys()), key='selected_model')
+    selected_model = st.sidebar.selectbox('Choose a model', list(model_ids.keys()), key='selected_model',on_change=lambda: st.session_state.pop('agent', None))
     maxt=model_ids[selected_model]['max']
     system_prompt = st.sidebar.text_input('System Prompt', value = "You are a helpful assistant")
     temperature = st.sidebar.slider('temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01)
-    #top_p = st.sidebar.slider('top_p', min_value=0.01, max_value=1.0, value=0.9, step=0.01)
     max_length = st.sidebar.slider('max_length', min_value=32, max_value=maxt, value=1000, step=8)
-    #st.markdown('📖 Learn how to build this app in this')
+
+
+# Function for initializing or re-initializing the agent
+def initialize_agent():
+    AgentClass = agent_classes[model_ids[selected_model]['vendor']]
+    # Exclude the first placeholder message by slicing the list from the second element
+    message_history = st.session_state.messages[1:] if len(st.session_state.messages) > 1 else []
+    st.session_state.agent = AgentClass(model=selected_model,
+                                        max_tokens=max_length,
+                                        messages=message_history,
+                                        temperature=temperature,
+                                        system_prompt=system_prompt)
+
+# Check if the model has been switched and re-initialize the agent if necessary
+if 'previous_model' not in st.session_state:
+    st.session_state.previous_model = selected_model
+
+if selected_model != st.session_state.previous_model:
+    initialize_agent()
+    st.session_state.previous_model = selected_model
+
 
 # Store LLM generated responses
 if "messages" not in st.session_state.keys():
@@ -50,26 +69,23 @@ def clear_chat_history():
 st.sidebar.button('Clear Chat History', on_click=clear_chat_history)
 
 # Function for generating response
+# Function for generating response
 def generate_response(prompt_input):
     try:
         if "agent" not in st.session_state.keys():
             AgentClass = agent_classes[model_ids[selected_model]['vendor']]
             try:
-                st.session_state.agent = AgentClass(model = selected_model,
+                # Exclude the first placeholder message by slicing the list from the second element
+                message_history = st.session_state.messages[1:] if len(st.session_state.messages) > 1 else []
+                st.session_state.agent = AgentClass(model=selected_model,
                                                     max_tokens=max_length,
+                                                    messages=message_history,
                                                     temperature=temperature,
                                                     system_prompt=system_prompt)
             except:
                 print('failed to initiate agent')
-        #st.session_state.agent.chat(prompt_input,options)
         st.session_state.agent.chat(prompt_input)
         output = st.session_state.agent.messages[-1]['content']
-        #if model_ids[selected_model]['vendor']=='gpt':
-        #    output_txt=""
-        #    for out_msg in output:
-        #        output_txt+=out_msg['text']['value']#
-
-        #    output=output_txt
     except:
         output = 'Sorry please try again'
     
