@@ -28,7 +28,7 @@ def reset_agent_state():
 
 def generate_response(prompt_input):
     if "agent" not in st.session_state:
-        message_history = st.session_state.messages[1:] if len(st.session_state.messages) > 2 else []
+        message_history = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
         st.session_state.agent = initialize_agent(st.session_state.selected_model, st.session_state.max_length,
                                                   message_history, st.session_state.temperature,
                                                   st.session_state.system_prompt)
@@ -54,9 +54,6 @@ def main():
 
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
-
-    for message in st.session_state.messages:
-        print(message)
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
