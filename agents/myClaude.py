@@ -94,7 +94,7 @@ class Agent:
 
         self.messages.append({"role": "user", "content": full_prompt})
 
-        if json_mode:
+        if json_mode==True:
             self.messages.append({"role": "assistant", "content": "{"})
 
         response = send_message(self.messages, self.system_prompt, self.model, self.max_tokens, self.temperature)
