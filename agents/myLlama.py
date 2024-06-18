@@ -54,7 +54,7 @@ def generate_w_images(prompt, images, stream=True):
 
 # Agent class for interacting with the Llama model
 class Agent:
-    def __init__(self, model='llama3', system_prompt='You are a helpful chat based assistant',messages=[], max_tokens=8000, temperature=0.5):
+    def __init__(self, model='llama3', system_prompt='You are a helpful chat based assistant',messages=[], max_tokens=8000, temperature=0.5,tools=None):
         """
         Initializes the Agent with a model, system prompt, maximum token count, and temperature.
 

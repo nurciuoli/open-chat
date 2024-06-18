@@ -13,6 +13,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 logging.info("OpenAI client initialized.")
 
+def get_file(file_path):
+    return client.files.retrieve(file_path)
+
+# Quick helper function to convert our output file to a png
+def convert_file_to_png(file_id, write_path):
+    data = client.files.content(file_id)
+    data_bytes = data.read()
+    with open(write_path, "wb") as file:
+        file.write(data_bytes)
+
 # Function to encode the image to base64
 def encode_image(image_path):
     """Encode image file to base64 string."""
@@ -50,14 +60,20 @@ def create_thread_and_run(user_input, assistant_id):
 
 import time
 
+import json
+
+
 # Pretty printing helper function
 def pretty_print(messages):
     """Pretty print messages and return a list of message dictionaries."""
     out_txt = []
     logging.info("# Messages")
-    for m in messages:
-        logging.info(f"{m.role}: {m.content[0].text.value}")
-        out_txt.append({"role": f"{m.role}", "content": f"{m.content[0].text.value}"})
+    for m in json.loads(messages.json())['data']:
+        for content_out in m['content']:
+            key = list(content_out.keys())[0]
+            logging.info(f"{m['role']}: {key}")
+            if key=='text':
+                out_txt.append({"role": f"{m['role']}", "content": f"{content_out[key]['value']}"})
     return out_txt
 
 # Function to wait on a run to complete
@@ -68,6 +84,35 @@ def wait_on_run(run, thread):
         time.sleep(0.5)
     logging.info(f"Run {run.id} completed with status {run.status}.")
     return run
+
+import json
+
+def show_json(obj):
+    print(json.loads(obj.model_dump_json()))
+
+def get_run_steps(thread,run):
+    run_steps = client.beta.threads.runs.steps.list(
+        thread_id=thread.id, run_id=run.id, order="asc"
+    )
+
+    return run_steps
+
+def pretty_print_run_steps(run_steps):
+    input_l=[]
+    output_l=[]
+    for step in json.loads(run_steps.json())['data']:
+        run_key = list(step['step_details'].keys())[0]
+        #print(run_key)
+        if run_key=='tool_calls':
+            for tool_call in step['step_details']['tool_calls']:
+                print(tool_call['code_interpreter']['input'])
+                input_l.append({'code_interpreter':tool_call['code_interpreter']['input']})
+                print(str(tool_call['code_interpreter']['outputs']))
+                output_l.append({'code_interpreter':tool_call['code_interpreter']['outputs']})
+                
+    return input_l,output_l
+
+    
 
 # Agent class definition
 class Agent:
@@ -89,6 +134,9 @@ class Agent:
         self.thread = None
         self.response = None
         self.messages = None
+        self.tools=tools
+        self.tool_input=None
+        self.tool_output=None
 
     def chat(self, prompt, images=None, json_mode=False):
         """Initiate chat with the assistant, handling text and optional images."""
@@ -109,8 +157,13 @@ class Agent:
         response_format = {"type": "json_object"} if json_mode else None
 
         self.run = submit_message(self.assistant.id, self.thread, content, response_format)
+        
         self.run = wait_on_run(self.run, self.thread)
+        if self.tools:
+            self.run_steps=get_run_steps(self.thread,self.run)
+            self.tool_input,self.tool_output=pretty_print_run_steps(self.run_steps)
         self.response = get_response(self.thread)
-        self.messages = pretty_print(self.response)
         self.history = self.response.to_dict()['data']
+        self.messages = pretty_print(self.response)
+        
         logging.info("Chat completed.")

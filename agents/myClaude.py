@@ -48,7 +48,8 @@ class Agent:
                  model="claude-3-sonnet-20240229",
                  messages=[],
                  max_tokens=1000,
-                 temperature=0.5):
+                 temperature=0.5,
+                 tools=None):
         """
         Initializes the Agent with default values or provided arguments.
 
