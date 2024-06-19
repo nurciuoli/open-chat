@@ -60,6 +60,8 @@ def main():
 
         st.button('Clear Chat History', on_click=clear_chat_history)
 
+
+
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
 
@@ -72,40 +74,34 @@ def main():
         st.session_state.agent = initialize_agent(st.session_state.selected_model, st.session_state.max_length,
                                                   message_history, st.session_state.temperature,
                                                   st.session_state.system_prompt,tools)
+    # Main Content Area
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
 
-    col1, col2 = st.columns([1, 1])  # Create two columns with a 3:1 width ratio
+    if prompt := st.chat_input():
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.write(prompt)
 
-    chat_input_placeholder = st.empty()  # Create a placeholder for the chat input box
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = generate_response(prompt)
+                placeholder = st.empty()
+                full_response = ''
+                for item in response:
+                    full_response += item
+                    placeholder.markdown(full_response)
+        message = {"role": "assistant", "content": full_response}
+        st.session_state.messages.append(message)
 
-    with col1:  # Chat history and input in the left column
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.write(message["content"])
-
-        prompt = chat_input_placeholder.chat_input()  # Use the placeholder for the chat input box
-
-        if prompt:
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.write(prompt)
-
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    response = generate_response(prompt)
-                    placeholder = st.empty()
-                    full_response = ''
-                    for item in response:
-                        full_response += item
-                        placeholder.markdown(full_response)
-            message = {"role": "assistant", "content": full_response}
-            st.session_state.messages.append(message)
-
-
-    with col2:  # Tool input/output display in the right column
+    tool_expander = st.expander("Tool Input/Output")
+    with tool_expander:
         if hasattr(st.session_state.agent, 'tool_input') and hasattr(st.session_state.agent, 'tool_output'):
             if st.session_state.agent.tool_input is not None and st.session_state.agent.tool_output is not None:
                 st.subheader("Tool Input")
-                st.code(st.session_state.agent.tool_input[0]['code_interpreter'], language='python')
+                st.code(st.session_state.agent.tool_input[0]['code_interpreter'],
+                        language = 'python')
                 
                 st.subheader("Tool Output")
                 tool_output = st.session_state.agent.tool_output
