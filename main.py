@@ -24,7 +24,14 @@ def display_image(image_data):
     image = Image.open(buffered)
     st.image(image, use_column_width=True)
 
-def initialize_agent(model, max_tokens, messages, temperature, system_prompt, tools, uploaded_file):
+def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_file):
+
+    messages = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
+    if st.session_state.selected_tools:
+        print(str(st.session_state.selected_tools))
+        for tool in st.session_state.selected_tools:
+            tools.append({'type':tool})
+    
     AgentClass = agent_classes[model_ids[model]['vendor']]
     if uploaded_file:
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -45,6 +52,66 @@ def reset_agent_state():
 def generate_response(prompt_input):
     st.session_state.agent.chat(prompt_input)
     return st.session_state.agent.messages[-1]['content']
+
+def initialize_messages(system_prompt):
+    if "messages" not in st.session_state:
+            st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
+
+
+def handle_tool_inout(tool_expander):
+    with tool_expander:
+        if hasattr(st.session_state.agent, 'tool_input') and hasattr(st.session_state.agent, 'tool_output'):
+            if st.session_state.agent.tool_input is not None and st.session_state.agent.tool_output is not None:
+                st.subheader("Output")
+                for tool_output in st.session_state.agent.tool_output:
+                    if 'code_interpreter' in tool_output:
+                        code_interpreter_output = tool_output['code_interpreter']
+                        for output in code_interpreter_output:
+                            if 'image' in output:
+                                image_data = output['image']
+                                if 'file_id' in image_data:
+                                    file_id = image_data['file_id']
+                                    file = get_file(file_id)
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                                        temp_file_path = temp_file.name
+                                    convert_file_to_png(file.id, temp_file_path)
+                                    st.image(temp_file_path)
+                                    os.unlink(temp_file_path)  # Delete the temporary file
+                                else:
+                                    st.write(output)
+                            else:
+                                st.write(output)
+                    else:
+                        st.write(tool_output)
+                st.subheader("Input")
+                for tool_input in st.session_state.agent.tool_input:
+                    st.code(tool_input['code_interpreter'], language = 'python')
+                    
+                
+
+
+def handle_messages():
+    # Main Content Area
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+
+    if prompt := st.chat_input():
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.write(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                response = generate_response(prompt)
+                placeholder = st.empty()
+                full_response = ''
+                for item in response:
+                    full_response += item
+                    placeholder.markdown(full_response)
+        message = {"role": "assistant", "content": full_response}
+        st.session_state.messages.append(message)
 
 def main():
     st.set_page_config(page_title="💬 My Chatbot")
@@ -70,76 +137,15 @@ def main():
     
     st.subheader("Chat")
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
-    # Main Content Area
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-
-
-    if prompt := st.chat_input():
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.write(prompt)
-
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = generate_response(prompt)
-                placeholder = st.empty()
-                full_response = ''
-                for item in response:
-                    full_response += item
-                    placeholder.markdown(full_response)
-        message = {"role": "assistant", "content": full_response}
-        st.session_state.messages.append(message)
-
+    initialize_messages(system_prompt)
     
+    handle_messages()
 
     if "agent" not in st.session_state:
-        message_history = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
-        if st.session_state.selected_tools:
-            print(str(st.session_state.selected_tools))
-            for tool in st.session_state.selected_tools:
-                tools.append({'type':tool})
-        
-        st.session_state.agent = initialize_agent(st.session_state.selected_model, st.session_state.max_length,
-                                                  message_history, st.session_state.temperature,
-                                                  st.session_state.system_prompt,tools,uploaded_file)
+        st.session_state.agent = initialize_agent(selected_model,max_length,temperature,system_prompt,tools,uploaded_file)
     
-
-     
-    
-
     tool_expander = st.expander("Tool Input/Output")
-    with tool_expander:
-        if hasattr(st.session_state.agent, 'tool_input') and hasattr(st.session_state.agent, 'tool_output'):
-            if st.session_state.agent.tool_input is not None and st.session_state.agent.tool_output is not None:
-                st.subheader("Tool Input")
-                for tool_input in st.session_state.agent.tool_input:
-                    st.code(tool_input['code_interpreter'], language = 'python')
-                    
-                st.subheader("Tool Output")
-                for tool_output in st.session_state.agent.tool_output:
-                    if 'code_interpreter' in tool_output:
-                        code_interpreter_output = tool_output['code_interpreter']
-                        for output in code_interpreter_output:
-                            if 'image' in output:
-                                image_data = output['image']
-                                if 'file_id' in image_data:
-                                    file_id = image_data['file_id']
-                                    file = get_file(file_id)
-                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-                                        temp_file_path = temp_file.name
-                                    convert_file_to_png(file.id, temp_file_path)
-                                    st.image(temp_file_path)
-                                    os.unlink(temp_file_path)  # Delete the temporary file
-                                else:
-                                    st.write(output)
-                            else:
-                                st.write(output)
-                    else:
-                        st.write(tool_output)
+    handle_tool_inout(tool_expander)
         
 
 if __name__ == "__main__":
