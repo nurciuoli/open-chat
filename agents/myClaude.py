@@ -49,7 +49,7 @@ class Agent:
                  messages=[],
                  max_tokens=1000,
                  temperature=0.5,
-                 tools=None):
+                 tools=None,files=None):
         """
         Initializes the Agent with default values or provided arguments.
 

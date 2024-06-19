@@ -62,6 +62,8 @@ import time
 
 import json
 
+def create_file(filepath):
+    return client.files.create(file=open(filepath, "rb"), purpose="assistants")
 
 # Pretty printing helper function
 def pretty_print(messages):
@@ -117,12 +119,13 @@ def pretty_print_run_steps(run_steps):
 # Agent class definition
 class Agent:
     """Agent class for interacting with OpenAI's API."""
-    def __init__(self, system_prompt='You are a helpful assistant', model='gpt-3.5-turbo',messages=[], max_tokens=4096, temperature=0.5, name='Chatbot GPT', tools=None):
+    def __init__(self, system_prompt='You are a helpful assistant', model='gpt-3.5-turbo',messages=[], max_tokens=4096, temperature=0.5, name='Chatbot GPT', tools=None,files=[]):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.history = messages
         self.model = model
         self.response = None
+        self.tools=tools
         self.assistant = client.beta.assistants.create(name=name, instructions=system_prompt, model=model)
         logging.info(f"Assistant {name} created with model {model}.")
         
@@ -130,11 +133,24 @@ class Agent:
             self.assistant = client.beta.assistants.update(self.assistant.id, tools=tools)
             logging.info(f"Assistant {name} updated with tools.")
 
+        if files:
+            uploaded_files=[]
+            for file in files:
+                temp_file = create_file(file)
+                uploaded_files.append(temp_file.id)
+            if tools:
+                self.assistant = client.beta.assistants.update(self.assistant.id, tool_resources={self.tools[0]['type']:{"file_ids":uploaded_files}})
+            else:
+                self.assistant = client.beta.assistants.update(self.assistant.id, tool_resources={'file_search':{"file_ids":uploaded_files}})
+            self.files=uploaded_files
+        else:
+            self.files=None
+
         self.run = None
         self.thread = None
         self.response = None
         self.messages = None
-        self.tools=tools
+        
         self.tool_input=None
         self.tool_output=None
 
@@ -144,6 +160,7 @@ class Agent:
         if not self.thread:
             if len(self.history)>0:
                 self.thread = client.beta.threads.create(messages=self.history)
+
             else:
                 self.thread = client.beta.threads.create()
             logging.info(f"New thread {self.thread.id} created.")

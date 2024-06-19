@@ -24,10 +24,16 @@ def display_image(image_data):
     image = Image.open(buffered)
     st.image(image, use_column_width=True)
 
-def initialize_agent(model, max_tokens, messages, temperature, system_prompt,tools):
+def initialize_agent(model, max_tokens, messages, temperature, system_prompt, tools, uploaded_file):
     AgentClass = agent_classes[model_ids[model]['vendor']]
+    if uploaded_file:
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(uploaded_file.getvalue())
+            files = [temp_file.name]
+    else:
+        files=None
     return AgentClass(model=model, max_tokens=max_tokens, messages=messages,
-                      temperature=temperature, system_prompt=system_prompt,tools=tools)
+                      temperature=temperature, system_prompt=system_prompt, tools=tools, files=files)
 
 def clear_chat_history():
     st.session_state.messages = [{"role": "assistant", "content": st.session_state.system_prompt}]
@@ -60,24 +66,17 @@ def main():
 
         st.button('Clear Chat History', on_click=clear_chat_history)
 
-
+    uploaded_file = st.file_uploader("Upload a file", type=['txt', 'pdf', 'png', 'jpg', 'jpeg', 'csv'],on_change=reset_agent_state) 
+    
+    st.subheader("Chat")
 
     if "messages" not in st.session_state:
         st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
-
-    if "agent" not in st.session_state:
-        message_history = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
-        if st.session_state.selected_tools:
-            print(str(st.session_state.selected_tools))
-            for tool in st.session_state.selected_tools:
-                tools.append({'type':tool})
-        st.session_state.agent = initialize_agent(st.session_state.selected_model, st.session_state.max_length,
-                                                  message_history, st.session_state.temperature,
-                                                  st.session_state.system_prompt,tools)
     # Main Content Area
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.write(message["content"])
+
 
     if prompt := st.chat_input():
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -95,25 +94,39 @@ def main():
         message = {"role": "assistant", "content": full_response}
         st.session_state.messages.append(message)
 
+    
+
+    if "agent" not in st.session_state:
+        message_history = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
+        if st.session_state.selected_tools:
+            print(str(st.session_state.selected_tools))
+            for tool in st.session_state.selected_tools:
+                tools.append({'type':tool})
+        
+        st.session_state.agent = initialize_agent(st.session_state.selected_model, st.session_state.max_length,
+                                                  message_history, st.session_state.temperature,
+                                                  st.session_state.system_prompt,tools,uploaded_file)
+    
+
+     
+    
+
     tool_expander = st.expander("Tool Input/Output")
     with tool_expander:
         if hasattr(st.session_state.agent, 'tool_input') and hasattr(st.session_state.agent, 'tool_output'):
             if st.session_state.agent.tool_input is not None and st.session_state.agent.tool_output is not None:
                 st.subheader("Tool Input")
-                st.code(st.session_state.agent.tool_input[0]['code_interpreter'],
-                        language = 'python')
-                
+                for tool_input in st.session_state.agent.tool_input:
+                    st.code(tool_input['code_interpreter'], language = 'python')
+                    
                 st.subheader("Tool Output")
-                tool_output = st.session_state.agent.tool_output
-                if isinstance(tool_output, list) and len(tool_output) > 0:
-                    first_output = tool_output[0]
-                    if isinstance(first_output, dict) and 'code_interpreter' in first_output:
-                        code_interpreter_output = first_output['code_interpreter']
-                        if isinstance(code_interpreter_output, list) and len(code_interpreter_output) > 0:
-                            first_code_output = code_interpreter_output[0]
-                            if isinstance(first_code_output, dict) and 'image' in first_code_output:
-                                image_data = first_code_output['image']
-                                if isinstance(image_data, dict) and 'file_id' in image_data:
+                for tool_output in st.session_state.agent.tool_output:
+                    if 'code_interpreter' in tool_output:
+                        code_interpreter_output = tool_output['code_interpreter']
+                        for output in code_interpreter_output:
+                            if 'image' in output:
+                                image_data = output['image']
+                                if 'file_id' in image_data:
                                     file_id = image_data['file_id']
                                     file = get_file(file_id)
                                     with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
@@ -122,15 +135,11 @@ def main():
                                     st.image(temp_file_path)
                                     os.unlink(temp_file_path)  # Delete the temporary file
                                 else:
-                                    st.write(tool_output)
+                                    st.write(output)
                             else:
-                                st.write(tool_output)
-                        else:
-                            st.write(tool_output)
+                                st.write(output)
                     else:
                         st.write(tool_output)
-                else:
-                    st.write(tool_output)
         
 
 if __name__ == "__main__":

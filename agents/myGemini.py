@@ -17,7 +17,7 @@ logging.info("Gemini client initialized.")
 
 
 class Agent:
-    def __init__(self, model='gemini-1.5-pro-latest', system_prompt='You are a helpful assistant', messages=[], tools=None, max_tokens=8000, temperature=0.5):
+    def __init__(self, model='gemini-1.5-pro-latest', system_prompt='You are a helpful assistant', messages=[], tools=None, max_tokens=8000, temperature=0.5,files=None):
         """Initialize the agent with model details and configuration."""
         self.response = None
         self.thread = None
