@@ -107,10 +107,14 @@ def pretty_print_run_steps(run_steps):
         #print(run_key)
         if run_key=='tool_calls':
             for tool_call in step['step_details']['tool_calls']:
-                print(tool_call['code_interpreter']['input'])
-                input_l.append({'code_interpreter':tool_call['code_interpreter']['input']})
-                print(str(tool_call['code_interpreter']['outputs']))
-                output_l.append({'code_interpreter':tool_call['code_interpreter']['outputs']})
+                if list(tool_call.keys())[0]=='id':
+                    tool_key = tool_call['function']['name']
+                    input_l.append({tool_key:tool_call['function']['arguments']})
+                else:
+                    print(tool_call['code_interpreter']['input'])
+                    input_l.append({'code_interpreter':tool_call['code_interpreter']['input']})
+                    print(str(tool_call['code_interpreter']['outputs']))
+                    output_l.append({'code_interpreter':tool_call['code_interpreter']['outputs']})
                 
     return input_l,output_l
 
