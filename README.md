@@ -17,3 +17,6 @@ Fun little streamlit based application for chatting with models from different t
 ![alt text](image.png)
 ### Model Selection
 ![alt text](image-1.png)
+
+### Custom Tool Usage
+![alt text](image-3.png)
