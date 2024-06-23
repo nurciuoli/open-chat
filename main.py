@@ -29,7 +29,10 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
     final_tools=[]
     if model_ids[model]['vendor']=='gpt':
         for tool in tools:
-            final_tools.append(gpt_agent_tools[tool])
+            if tool=='code_interpreter':
+                final_tools.append({"type":tool})
+            else:
+                final_tools.append(gpt_agent_tools[tool])
     elif model_ids[model]['vendor']=='claude':
         for tool in tools:
             final_tools.append(claude_agent_tools[tool])
@@ -68,50 +71,55 @@ def initialize_messages(system_prompt):
 
 
 def handle_tool_inout():
-    if hasattr(st.session_state.agent, 'tool_output'):
-        if st.session_state.agent.tool_output is not None:
-            st.subheader("Output")
-            for tool_output in st.session_state.agent.tool_output:
-                if 'code_interpreter' in tool_output:
-                    code_interpreter_output = tool_output['code_interpreter']
-                    for output in code_interpreter_output:
-                        if 'image' in output:
-                            image_data = output['image']
-                            if 'file_id' in image_data:
-                                file_id = image_data['file_id']
-                                file = get_file(file_id)
-                                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
-                                    temp_file_path = temp_file.name
-                                convert_file_to_png(file.id, temp_file_path)
-                                st.image(temp_file_path)
-                                os.unlink(temp_file_path)  # Delete the temporary file
+    try:
+        if hasattr(st.session_state.agent, 'tool_output'):
+            if st.session_state.agent.tool_output is not None:
+                st.subheader("Output")
+                for tool_output in st.session_state.agent.tool_output:
+                    if 'code_interpreter' in tool_output:
+                        code_interpreter_output = tool_output['code_interpreter']
+                        for output in code_interpreter_output:
+                            if 'image' in output:
+                                image_data = output['image']
+                                if 'file_id' in image_data:
+                                    file_id = image_data['file_id']
+                                    file = get_file(file_id)
+                                    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                                        temp_file_path = temp_file.name
+                                    convert_file_to_png(file.id, temp_file_path)
+                                    st.image(temp_file_path)
+                                    os.unlink(temp_file_path)  # Delete the temporary file
+                                else:
+                                    st.write(output)
                             else:
                                 st.write(output)
-                        else:
-                            st.write(output)
-                    #elif 'edit_file' in tool_output:
-                    #    st.write(tool_output['edit_file'])
-                else:
-                    st.write(tool_output)
-    if hasattr(st.session_state.agent, 'tool_input'):
-        if st.session_state.agent.tool_input is not None:
-            st.subheader("Input")
-            file_inputs = [tool_input for tool_input in st.session_state.agent.tool_input if 'write_file' in tool_input]
-            if file_inputs:
-                file_expander = st.expander("Files")
-                with file_expander:
-                    # Get the file names
-                    file_names = [file_input['write_file']['file_name'] + file_input['write_file']['file_type'] for file_input in file_inputs]
-                    # Use file names in the selectbox
-                    selected_file_name = st.selectbox('Select a file', file_names)
-                    # Get the selected file input
-                    selected_file_input = next(file_input for file_input in file_inputs if file_input['write_file']['file_name'] + file_input['write_file']['file_type'] == selected_file_name)
-                    st.code(selected_file_input['write_file']['content'], language=selected_file_input['write_file']['file_type'].lstrip('.'))
-            for tool_input in st.session_state.agent.tool_input:
-                if 'code_interpreter' in tool_input:
-                    st.code(tool_input['code_interpreter'], language = 'python')
-                elif 'write_file' not in tool_input:
-                    st.write(tool_input[list(tool_input.keys())[0]])
+                        #elif 'edit_file' in tool_output:
+                        #    st.write(tool_output['edit_file'])
+                    else:
+                        st.write(tool_output)
+        if hasattr(st.session_state.agent, 'tool_input'):
+            if st.session_state.agent.tool_input is not None:
+                st.subheader("Input")
+                file_inputs = [tool_input for tool_input in st.session_state.agent.tool_input if 'write_file' in tool_input]
+                if file_inputs:
+                    file_expander = st.expander("Files")
+                    with file_expander:
+                        # Get the file names
+                        file_names = [file_input['write_file']['file_name'] + file_input['write_file']['file_type'] for file_input in file_inputs]
+                        # Use file names in the selectbox
+                        selected_file_name = st.selectbox('Select a file', file_names)
+                        # Get the selected file input
+                        selected_file_input = next(file_input for file_input in file_inputs if file_input['write_file']['file_name'] + file_input['write_file']['file_type'] == selected_file_name)
+                        print(selected_file_input)
+                        st.code(selected_file_input['write_file']['content'], language=selected_file_input['write_file']['file_type'].lstrip('.'))
+                for tool_input in st.session_state.agent.tool_input:
+                    if 'code_interpreter' in tool_input:
+                        st.code(tool_input['code_interpreter'], language = 'python')
+                    elif 'write_file' not in tool_input:
+                        st.write(tool_input[list(tool_input.keys())[0]])
+    except:
+        print('no output')
+        pass
                 
 
 
@@ -150,10 +158,10 @@ def main():
         
         selected_model = st.selectbox('Choose a model', list(model_ids.keys()), key='selected_model', on_change=reset_agent_state)
         tool_select = st.multiselect('Agent Tools', ['write_file','edit_file'],None,key='selected_tools', on_change=reset_agent_state)
-        on = st.toggle("Code Interpreter")
+        on = st.toggle("Code Interpreter", on_change=reset_agent_state)
 
         if on:
-            tools = ['code_intepreter']
+            tools = ['code_interpreter']
         else:
             tools= tool_select
 
