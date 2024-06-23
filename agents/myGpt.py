@@ -4,6 +4,7 @@ import json
 import os
 from dotenv import load_dotenv
 import logging
+import time
 
 # Load environment variables and configure logging
 load_dotenv()
@@ -58,9 +59,6 @@ def create_thread_and_run(user_input, assistant_id):
     logging.info(f"Thread {thread.id} created and run submitted.")
     return thread, run
 
-import time
-
-import json
 
 def create_file(filepath):
     return client.files.create(file=open(filepath, "rb"), purpose="assistants")
@@ -86,8 +84,6 @@ def wait_on_run(run, thread):
         time.sleep(0.5)
     logging.info(f"Run {run.id} completed with status {run.status}.")
     return run
-
-import json
 
 def show_json(obj):
     print(json.loads(obj.model_dump_json()))
@@ -119,8 +115,6 @@ def pretty_print_run_steps(run_steps):
                         output_l.append({'code_interpreter':tool_call['code_interpreter']['outputs']})
                 
     return input_l,output_l
-
-    
 
 # Agent class definition
 class Agent:

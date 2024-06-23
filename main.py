@@ -29,10 +29,7 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
     final_tools=[]
     if model_ids[model]['vendor']=='gpt':
         for tool in tools:
-            if tool=='code_interpreter':
-                final_tools.append({"type":tool})
-            else:
-                final_tools.append(gpt_agent_tools[tool])
+            final_tools.append(gpt_agent_tools[tool])
     elif model_ids[model]['vendor']=='claude':
         for tool in tools:
             final_tools.append(claude_agent_tools[tool])
