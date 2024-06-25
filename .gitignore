@@ -6,6 +6,7 @@ archive/
 # C extensions
 *.so
 .streamlit/
+sandbox/
 
 # Distribution / packaging
 .Python

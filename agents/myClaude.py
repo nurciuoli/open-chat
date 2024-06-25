@@ -149,10 +149,18 @@ class Agent:
         full_prompt = ''
         if attachments is not None:
             for attachment in attachments:
-                tag_label = attachment['name']
-                full_prompt += f"<{tag_label}> {attachment['content']} </{tag_label}>"
-        else:
-            full_prompt = user_prompt
+                self.files.append(attachment)
+        if self.files is not None:
+            for file_path in self.files:
+                try:
+                    with open(file_path, 'r') as file:
+                        content = file.read()
+                        tag_label = os.path.basename(file_path)
+                        full_prompt += f"<{tag_label}> {content} </{tag_label}>"
+                except Exception as e:
+                    logging.error(f"Error reading file {file_path}: {e}")
+
+        full_prompt+=user_prompt
 
         self.history.append({"role": "user", "content": full_prompt})
 

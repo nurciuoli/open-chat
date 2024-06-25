@@ -1,5 +1,5 @@
 #Agent util jsons
-gpt_agent_tools = {"code_intepreter":{"type":"code_interpreter"},
+gpt_agent_tools = {"code_interpreter":{"type":"code_interpreter"},
                    "write_file":
                         {
                           "type": "function",

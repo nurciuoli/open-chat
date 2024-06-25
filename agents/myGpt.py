@@ -104,15 +104,19 @@ def pretty_print_run_steps(run_steps):
         if run_key=='tool_calls':
             for tool_call in step['step_details']['tool_calls']:
                 print(tool_call)
-                if list(tool_call.keys())[0]=='id':
-                    if list(tool_call.values())[0]=='function':
-                        tool_key = tool_call['function']['name']
-                        input_l.append({tool_key:tool_call['function']['arguments']})
-                    else:
-                        print(tool_call['code_interpreter']['input'])
-                        input_l.append({'code_interpreter':tool_call['code_interpreter']['input']})
-                        print(str(tool_call['code_interpreter']['outputs']))
-                        output_l.append({'code_interpreter':tool_call['code_interpreter']['outputs']})
+                if list(tool_call.keys())[1]=='function':
+                    tool_input_call = json.loads(tool_call['function']['arguments'])
+                    tool_key = tool_input_call['file_name']+tool_input_call['file_type']
+                    print(tool_key)
+                    input_l.append({"write_file":tool_input_call})
+                elif list(tool_call.keys())[1]=='code_interpreter':
+                    #print(tool_call['code_interpreter']['input'])
+                    input_l.append({'code_interpreter':tool_call['code_interpreter']['input']})
+                    #print(str(tool_call['code_interpreter']['outputs']))
+                    output_l.append({'code_interpreter':tool_call['code_interpreter']['outputs']})
+                else:
+                    print('no output')
+                    pass
                 
     return input_l,output_l
 
@@ -127,6 +131,12 @@ class Agent:
         self.response = None
         self.tools=tools
         self.assistant = client.beta.assistants.create(name=name, instructions=system_prompt, model=model)
+        self.run = None
+        self.thread = None
+        self.response = None
+        self.messages = None
+        self.tool_input=None
+        self.tool_output=None
         logging.info(f"Assistant {name} created with model {model}.")
         
         if tools:
@@ -138,21 +148,16 @@ class Agent:
             for file in files:
                 temp_file = create_file(file)
                 uploaded_files.append(temp_file.id)
-            if tools:
-                self.assistant = client.beta.assistants.update(self.assistant.id, tool_resources={self.tools[0]['type']:{"file_ids":uploaded_files}})
+            if tools and not any(tool['type'] == 'code_interpreter' for tool in tools):
+                tools.append({"type": 'code_interpreter'})
+                self.assistant = client.beta.assistants.update(self.assistant.id, tools=tools,tool_resources={'code_interpreter':{"file_ids":uploaded_files}})
             else:
-                self.assistant = client.beta.assistants.update(self.assistant.id, tool_resources={'file_search':{"file_ids":uploaded_files}})
+                self.assistant = client.beta.assistants.update(self.assistant.id, tool_resources={'code_interpreter':{"file_ids":uploaded_files}})
             self.files=uploaded_files
         else:
             self.files=None
 
-        self.run = None
-        self.thread = None
-        self.response = None
-        self.messages = None
         
-        self.tool_input=None
-        self.tool_output=None
 
     def chat(self, prompt, images=None, json_mode=False):
         """Initiate chat with the assistant, handling text and optional images."""

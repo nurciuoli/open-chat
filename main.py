@@ -25,7 +25,7 @@ def display_image(image_data):
     image = Image.open(buffered)
     st.image(image, use_column_width=True)
 
-def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_file):
+def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_file,proj_files):
     final_tools=[]
     if model_ids[model]['vendor']=='gpt':
         for tool in tools:
@@ -34,7 +34,6 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
         for tool in tools:
             final_tools.append(claude_agent_tools[tool])
 
-
     messages = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
     if st.session_state.selected_tools:
         print(str(st.session_state.selected_tools))
@@ -42,12 +41,18 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
             tools.append({'type':tool})
     
     AgentClass = agent_classes[model_ids[model]['vendor']]
+    files = []
     if uploaded_file:
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_file.write(uploaded_file.getvalue())
-            files = [temp_file.name]
-    else:
-        files=None
+            files.append(temp_file.name)
+    if proj_files:
+        for proj_file in proj_files:
+            with open(proj_file, 'rb') as f:
+                file_content = f.read()
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(file_content)
+                files.append(temp_file.name)
     return AgentClass(model=model, max_tokens=max_tokens, messages=messages,
                       temperature=temperature, system_prompt=system_prompt, tools=final_tools, files=files)
 
@@ -67,7 +72,7 @@ def initialize_messages(system_prompt):
             st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
 
 
-def handle_tool_inout():
+def handle_tool_inout(directory):
     try:
         if hasattr(st.session_state.agent, 'tool_output'):
             if st.session_state.agent.tool_output is not None:
@@ -98,6 +103,15 @@ def handle_tool_inout():
             if st.session_state.agent.tool_input is not None:
                 st.subheader("Input")
                 file_inputs = [tool_input for tool_input in st.session_state.agent.tool_input if 'write_file' in tool_input]
+                
+                # Create the directory if it doesn't exist
+                os.makedirs(f'sandbox/{directory}', exist_ok=True)
+
+                for file_input in file_inputs:
+                    file_name = file_input['write_file']['file_name'] + file_input['write_file']['file_type']
+                    with open(os.path.join(f'sandbox/{directory}', file_name), 'w') as f:
+                        f.write(file_input['write_file']['content'])
+                
                 if file_inputs:
                     file_expander = st.expander("Files")
                     with file_expander:
@@ -146,6 +160,8 @@ def handle_messages():
 def main():
     st.set_page_config(page_title="💬 My Chatbot")
 
+    selected_files=None
+
     tools=[]
 
     with st.sidebar:
@@ -168,6 +184,42 @@ def main():
         temperature = st.slider('temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01, key='temperature',on_change=reset_agent_state)
         max_length = st.slider('max_length', min_value=32, max_value=maxt, value=1000, step=8, key='max_length',on_change=reset_agent_state)
 
+        
+        # Add a radio button for the user to choose between starting a new project or working on an existing one
+        project_option = st.radio('Project Option', ['Start New Project', 'Work on Existing'], key='project_option', on_change=reset_agent_state)
+
+        # If the user wants to start a new project
+        if project_option == 'Start New Project':
+            # Allow the user to input a name for the new project
+            new_project_name = st.text_input('New Project Name', value='Untitled', key='new_project_name', on_change=reset_agent_state)
+            selected_directory = new_project_name
+
+        # If the user wants to work on an existing project
+        else:
+            # Get a list of subdirectories in "sandbox/"
+            subdirectories = [d for d in os.listdir('sandbox') if os.path.isdir(os.path.join('sandbox', d))]
+            # Allow the user to select an existing directory
+            selected_directory = st.selectbox('Select a directory', subdirectories, key='selected_directory', on_change=reset_agent_state)
+            
+            # Get a list of files in the selected directory
+            files_in_directory = os.listdir(f'sandbox/{selected_directory}')
+            # Allow the user to select multiple files
+            selected_files = st.multiselect('Select files', files_in_directory,None, key='selected_files', on_change=reset_agent_state)
+
+            selected_files = [os.path.join(f'sandbox/{selected_directory}', file_name) for file_name in selected_files]
+
+        # If the user selected "New Project", create a new directory
+        if selected_directory == 'New Project':
+            # Find the next available number for "Untitled#"
+            untitled_dirs = [d for d in subdirectories if d.startswith('Untitled')]
+            if untitled_dirs:
+                max_number = max(int(d.lstrip('Untitled')) for d in untitled_dirs)
+                new_number = max_number + 1
+            else:
+                new_number = 1
+            # Create the new directory
+            selected_directory = f'Untitled{new_number}'
+
         st.button('Clear Chat History', on_click=clear_chat_history)
 
     uploaded_file = st.file_uploader("Upload a file", type=['txt', 'pdf', 'png', 'jpg', 'jpeg', 'csv'],on_change=reset_agent_state) 
@@ -179,10 +231,10 @@ def main():
     handle_messages()
 
     if "agent" not in st.session_state:
-        st.session_state.agent = initialize_agent(selected_model,max_length,temperature,system_prompt,tools,uploaded_file)
+        st.session_state.agent = initialize_agent(selected_model,max_length,temperature,system_prompt,tools,uploaded_file, selected_files)
     
     #tool_expander = st.expander("Tool Input/Output")
-    handle_tool_inout()
+    handle_tool_inout(selected_directory)
         
 
 if __name__ == "__main__":
