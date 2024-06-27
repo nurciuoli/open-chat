@@ -161,7 +161,16 @@ def handle_messages():
         st.session_state.messages.append(message)
 
 
-def save_configuration(config_name, config):
+def save_configuration(config_name, selected_model,system_prompt,temperature,max_length,tools,selected_directory,selected_files):
+    config = {
+                    'selected_model': selected_model,
+                    'system_prompt': system_prompt,
+                    'temperature': temperature,
+                    'max_length': max_length,
+                    'tools': tools,
+                    'selected_directory': selected_directory,
+                    'selected_files': selected_files
+                }
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(os.path.join(CONFIG_DIR, f'{config_name}.json'), 'w') as f:
         json.dump(config, f)
@@ -213,28 +222,4 @@ def project_selection():
 
     return selected_directory, selected_files
 
-def save_agent_button(selected_model, system_prompt, temperature, max_length, tools, selected_directory, selected_files):
-    st.subheader('Agent Management')
-    with st.expander("Save Agent"):
-        config_name = st.text_input('Agent Name', key='config_name')
-        if st.button('Save Agent'):
-            config = {
-                'selected_model': selected_model,
-                'system_prompt': system_prompt,
-                'temperature': temperature,
-                'max_length': max_length,
-                'tools': tools,
-                'selected_directory': selected_directory,
-                'selected_files': selected_files
-            }
-            save_configuration(config_name, config)
-            st.success(f'Agent "{config_name}" saved!')
-
-def load_saved_agent_button():
-    saved_configs = get_saved_configurations()
-    if saved_configs:
-        with st.expander("Load Saved Agent"):
-            selected_config = st.selectbox('Select Agent', saved_configs, key='selected_config')
-            if st.button('Load Saved Agent'):
-                st.session_state.load_config = selected_config
-                st.rerun()
+    
