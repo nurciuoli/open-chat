@@ -21,7 +21,8 @@ agent_classes = {
 
 CONFIG_DIR = 'local/'
 
-
+def list_image_files(directory="local/images/"):
+    return [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
 
 def handle_tool_inout(directory):
     try:
