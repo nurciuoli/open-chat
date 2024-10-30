@@ -2,7 +2,7 @@ import base64
 from io import BytesIO
 import streamlit as st
 from PIL import Image
-from tools import gpt_agent_tools,claude_agent_tools
+from tools import *
 import os
 import json
 import tempfile
@@ -21,8 +21,7 @@ agent_classes = {
 
 CONFIG_DIR = 'local/'
 
-def list_image_files(directory="local/images/"):
-    return [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+
 
 def handle_tool_inout(directory):
     try:
@@ -99,6 +98,9 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
     elif model_ids[model]['vendor']=='claude':
         for tool in tools:
             final_tools.append(claude_agent_tools[tool])
+    elif model_ids[model]['vendor']=='gemini':
+        for tool in tools:
+            final_tools.append(gemini_agent_tools[tool])
 
     messages = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
     if st.session_state.selected_tools:
@@ -123,7 +125,7 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
                       temperature=temperature, system_prompt=system_prompt, tools=final_tools, files=files)
 
 def clear_chat_history():
-    st.session_state.messages = [{"role": "assistant", "content": st.session_state.system_prompt}]
+    st.session_state.messages = []
     st.session_state.pop('agent', None)
 
 def reset_agent_state():
@@ -133,9 +135,9 @@ def generate_response(prompt_input):
     st.session_state.agent.chat(prompt_input)
     return st.session_state.agent.messages[-1]['content']
 
-def initialize_messages(system_prompt):
+def initialize_messages():
     if "messages" not in st.session_state:
-            st.session_state.messages = [{"role": "assistant", "content": system_prompt}]
+            st.session_state.messages = []
 
 
 def handle_messages():

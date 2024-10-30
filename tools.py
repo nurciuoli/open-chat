@@ -1,5 +1,5 @@
 #Agent util jsons
-gpt_agent_tools = {"code_interpreter":{"type":"code_interpreter"},
+gpt_agent_tools = {"code_env":{"type":"code_interpreter"},
                    "write_file":
                         {
                           "type": "function",
@@ -82,3 +82,6 @@ claude_agent_tools = {"write_file":{
                           },
                       },
                       }
+
+
+gemini_agent_tools = {"code_env":"code_execution"}

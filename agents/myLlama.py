@@ -1,7 +1,8 @@
 import ollama as o
 import base64
 import logging
-
+from ollama import Client
+client = Client()
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -17,7 +18,7 @@ def chat(user_msg):
     - dict: The response from the Llama model.
     """
     messages = [{'role': 'user', 'content': user_msg}]
-    response = o.chat('llama3', messages=messages, stream=False)
+    response = client.chat('llama3', messages=messages, stream=False)
     logging.info("Chat message sent and response received.")
     return response
 
@@ -95,7 +96,7 @@ class Agent:
         options = {'num_predict': self.max_tokens, 'temperature': self.temperature}
 
         self.messages.append({'role': 'user', 'content': user_msg})
-        self.response = o.chat(self.model, messages=self.messages, stream=False, options=options, format=out_format)
+        self.response = client.chat(self.model, messages=self.messages, stream=False, options=options, format=out_format)
         self.messages.append({'role': 'assistant', 'content': self.response['message']['content']})
         logging.info("Chat continued with user message.")
         return self.response['message']['content']

@@ -28,7 +28,7 @@ class Agent:
         self.system_prompt = system_prompt
         self.model = None
         self.messages=messages
-        self.history=[]
+        self.history=None
         logging.info(f"Agent initialized with model {model}")
 
          # Convert input messages to the required format for the history
@@ -50,7 +50,11 @@ class Agent:
 
             if self.thread is None:
                 # Start the chat session with the formatted history
-                self.thread = self.model.start_chat(history=self.history, enable_automatic_function_calling=auto_funct_call)
+                if self.history:
+                    self.thread = self.model.start_chat(history=self.history, enable_automatic_function_calling=auto_funct_call)
+                else:
+                    self.thread = self.model.start_chat(enable_automatic_function_calling=auto_funct_call)
+                
                 logging.info("Gemini Chat session started.")
 
             # Construct the message in the expected format for the history
