@@ -30,4 +30,5 @@ model_ids = {'llama3.1':{'vendor':'llama',
                                       'max':8192},
             'gemini-1.5-flash-latest':{'vendor':'gemini',
                                     'max':8192},
+            'grok-beta':{'vendor':'grok','max':4096},
                                     }

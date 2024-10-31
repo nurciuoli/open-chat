@@ -10,6 +10,7 @@ from models import model_ids
 from agents.myLlama import Agent as LlamaAgent
 from agents.myGemini import Agent as GeminiAgent
 from agents.myClaude import Agent as ClaudeAgent
+from agents.myGrok import Agent as GrokAgent
 from agents.myGpt import Agent as GptAgent,get_file,convert_file_to_png
 
 agent_classes = {
@@ -17,6 +18,7 @@ agent_classes = {
     'gemini': GeminiAgent,
     'claude': ClaudeAgent,
     'gpt': GptAgent,
+    'grok':GrokAgent,
 }
 
 CONFIG_DIR = 'local/'
