@@ -1,21 +1,21 @@
-from openai import OpenAI
-import base64
-import json
+import requests
 import os
 from dotenv import load_dotenv
 import logging
 import time
+from openai import OpenAI
 
 # Load environment variables and configure logging
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-MODEL_NAME = "grok-beta"
-XAI_API_KEY = os.getenv("XAI_API_KEY")
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
+
+logging.info("Perplexity configuration initialized.")
 
 client = OpenAI(
-    api_key=XAI_API_KEY,
-    base_url="https://api.x.ai/v1",
+    api_key=PERPLEXITY_API_KEY,
+    base_url="https://api.perplexity.ai",
 )
 logging.info("OpenAI client initialized.")
 
@@ -23,13 +23,13 @@ logging.info("OpenAI client initialized.")
 # Agent class definition
 class Agent:
     """Agent class for interacting with OpenAI's API."""
-    def __init__(self, system_prompt='You are a helpful assistant', model='grok-beta',messages=[], max_tokens=4096, temperature=0.5,**kwargs):
+    def __init__(self, system_prompt='You are a helpful assistant', model="llama-3.1-sonar-large-128k-chat",messages=[], max_tokens=4096, temperature=0.5,**kwargs):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.history = messages
         self.model = model
         self.response = None
-        logging.info(f"Grok agent created with model {model}.")
+        logging.info(f"Perplexity agent created with model {model}.")
 
         if messages==[]:
             messages.append({'role':'system','content':system_prompt})
@@ -54,3 +54,4 @@ class Agent:
         #print(self.response.choices[0].message.content)
         
         logging.info("Chat completed.")
+

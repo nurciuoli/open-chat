@@ -12,13 +12,14 @@ from agents.myGemini import Agent as GeminiAgent
 from agents.myClaude import Agent as ClaudeAgent
 from agents.myGrok import Agent as GrokAgent
 from agents.myGpt import Agent as GptAgent,get_file,convert_file_to_png
-
+from agents.myPerplexity import Agent as PerplexityAgent
 agent_classes = {
     'llama': LlamaAgent,
     'gemini': GeminiAgent,
     'claude': ClaudeAgent,
     'gpt': GptAgent,
     'grok':GrokAgent,
+    'perplex':PerplexityAgent,
 }
 
 CONFIG_DIR = 'local/'
