@@ -105,8 +105,9 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
         for tool in tools:
             final_tools.append(gemini_agent_tools[tool])
 
-    messages = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
-    if st.session_state.selected_tools:
+    if hasattr(st.session_state, 'messages'):
+        messages = st.session_state.messages[1:-1] if len(st.session_state.messages) > 2 else []
+    if hasattr(st.session_state, 'selected_tools'):
         print(str(st.session_state.selected_tools))
         for tool in st.session_state.selected_tools:
             tools.append({'type':tool})
@@ -126,6 +127,9 @@ def initialize_agent(model,max_tokens,temperature,system_prompt,tools,uploaded_f
                 files.append(temp_file.name)
     return AgentClass(model=model, max_tokens=max_tokens, messages=messages,
                       temperature=temperature, system_prompt=system_prompt, tools=final_tools, files=files)
+
+
+
 
 def clear_chat_history():
     st.session_state.messages = []
