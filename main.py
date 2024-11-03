@@ -5,7 +5,7 @@ from images import show_image_generation
 from notes import show_notes
 
 def main():
-    st.set_page_config(page_title="💬 My Chatbot")
+    st.set_page_config(page_title="💬 Open-Chat")
 
     if 'page' not in st.session_state:
         st.session_state.page = 'home'  # Default page

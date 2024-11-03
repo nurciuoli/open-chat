@@ -35,6 +35,39 @@ def load_notes():
             return json.load(f)
     return {}
 
+def generate_content():
+# Handle AI response in sidebar if not Generate Content
+    if st.session_state.get("ai_prompt", ""):
+        response = generate_response(st.session_state.user_prompt)
+        
+        if st.session_state.ai_actions == "Generate Content":
+            # Update note content directly
+            new_content = st.session_state.current_note['content'] + "\n\n" + response
+            st.session_state.current_note['content'] = new_content
+            st.rerun()
+        else:
+            # Show response in sidebar
+            with st.expander("AI Response", expanded=True):
+                st.markdown(response)
+        
+
+
+def handle_ai_response(user_prompt):
+    """Handle AI response generation and display"""
+    if user_prompt:
+        response = generate_response(user_prompt)
+        
+        if st.session_state.ai_actions == "Generate Content":
+            # Update note content directly
+            new_content = st.session_state.current_note['content'] + "\n\n" + response
+            st.session_state.current_note['content'] = new_content
+            st.rerun()
+        else:
+            # Show response in sidebar
+            with st.sidebar:
+                with st.expander("AI Response", expanded=True):
+                    st.markdown(response)
+
 def show_notes():
     if 'current_note' not in st.session_state:
         st.session_state.current_note = {'title': '', 'content': ''}
@@ -42,65 +75,7 @@ def show_notes():
     # Load notes from file instead of session state
     st.session_state.notes_list = load_notes()
 
-    with st.sidebar:
-        st.button('New Note', on_click=lambda: setattr(st.session_state, 'current_note', {'title': '', 'content': ''}), type="primary", use_container_width=True)
-        
-        st.subheader('Saved Notes')
-        show_saved = st.toggle("Show", value=False)
-        
-        if show_saved:
-            saved_notes = list(st.session_state.notes_list.keys())
-            if saved_notes:
-                selected_note = st.selectbox('Select Note', saved_notes, key='selected_note')
-                if st.button('Load Note'):
-                    st.session_state.current_note = st.session_state.notes_list[selected_note].copy()
-                    st.rerun()
-        st.subheader('Models and parameters', divider="grey")
-        selected_model = st.selectbox('Choose a model', list(model_ids.keys()), key='notes_model', on_change=reset_agent_state)
-        
-        maxt = model_ids[selected_model]['max']
-
-
-        ai_actions = st.selectbox("AI Actions", [
-            "Generate Content",
-            "Summarize",
-            "Critic",
-            "Custom prompt"
-        ])
-        if ai_actions == "Custom prompt":
-
-            ai_prompt = st.text_input('System Prompt', value="You are a helpful assistant for note-taking and organizing information", key='notes_system_prompt', on_change=reset_agent_state)
-        
-        if ai_actions == "Custom prompt" and not ai_prompt:
-            st.warning("Please enter a custom prompt.")
-        else:
-            with st.spinner('AI is thinking...'):
-                if ai_actions == "Generate Content":
-                    system_prompt = f"Your role is to generate content based on the user's preferences. Do not respond in chat format, only respond with content"
-                elif ai_actions == "Summarize":
-                    system_prompt = f"Your job is to summarize content. If not additional instructions do just that. Here is the current note:\n\n{st.session_state.current_note}"
-                elif ai_actions == "Critic":
-                    system_prompt = f"Based on this note, suggest possible areas for improvement:\n\n{st.session_state.current_note}"
-                else:
-                    system_prompt = ai_prompt
-        
-        
-        temperature = st.slider('Temperature', min_value=0.01, max_value=1.0, value=0.1, step=0.01, key='notes_temperature', on_change=reset_agent_state)
-        max_length = st.slider('Max Output Length', min_value=32, max_value=maxt, value=1000, step=8, key='notes_max_length', on_change=reset_agent_state)
-
-        initialize_messages()
-        
-        if "notes_agent" not in st.session_state:
-            st.session_state.agent = initialize_agent(
-                selected_model, 
-                max_length,
-                temperature, 
-                system_prompt, 
-                [], 
-                None, 
-                None
-            )
-
+    # Main content area - just the note editor
     st.subheader("Notes Editor", divider="grey")
     
     title = st.text_input("Title", value=st.session_state.current_note['title'])
@@ -113,24 +88,97 @@ def show_notes():
         if title:
             save_note(title, st.session_state.current_note.copy())
             st.success(f'Note "{title}" saved!', icon="✅")
-            load_notes()  # Reload notes after saving
+            load_notes()
         else:
             st.warning('Please enter a title for the note.')
 
-    st.subheader("AI Assistant", divider="grey")
-    
-    ai_prompt = st.text_area("Ask AI to help with your notes", height=100)
-
-    if st.button('Get AI Help'):
-        response = generate_response(ai_prompt)
+    # Sidebar content
+    with st.sidebar:
+        st.button('New Note', 
+                 on_click=lambda: setattr(st.session_state, 'current_note', {'title': '', 'content': ''}), 
+                 type="primary", 
+                 use_container_width=True)
         
-        # Handle response differently based on AI action
-        if ai_actions == "Generate Content":
-            # Append generated content to the note
-            new_content = content + "\n\n" + response
-            st.session_state.current_note['content'] = new_content
-            st.rerun()
+        # Saved Notes Section
+        st.subheader('Saved Notes')
+        show_saved = st.toggle("Show", value=False)
+        
+        if show_saved:
+            saved_notes = list(st.session_state.notes_list.keys())
+            if saved_notes:
+                selected_note = st.selectbox('Select Note', saved_notes, key='selected_note')
+                if st.button('Load Note'):
+                    st.session_state.current_note = st.session_state.notes_list[selected_note].copy()
+                    st.rerun()
+
+        # AI Section
+        st.subheader('Models and parameters', divider="grey")
+        selected_model = st.selectbox('Choose a model', 
+                                    list(model_ids.keys()), 
+                                    key='notes_model', 
+                                    on_change=reset_agent_state)
+        
+        maxt = model_ids[selected_model]['max']
+
+        ai_actions = st.selectbox("AI Actions", [
+            "Generate Content",
+            "Summarize",
+            "Critic",
+            "Custom prompt"
+        ], key='ai_actions')
+
+        # Handle system prompt based on AI action
+        if ai_actions == "Custom prompt":
+            system_prompt = st.text_input('System Prompt', 
+                                        value="You are a helpful assistant for note-taking and organizing information", 
+                                        key='notes_system_prompt', 
+                                        on_change=reset_agent_state)
+            st.warning("Please enter a custom prompt.")
         else:
-            # Display other responses in an expander
-            with st.expander("AI Response", expanded=True):
-                st.markdown(response)
+            system_prompt = {
+                "Generate Content": "Your role is to generate content based on the user's preferences. Do not respond in chat format, only respond with content",
+                "Summarize": f"Your job is to summarize content. If not additional instructions do just that. Here is the current note:\n\n{st.session_state.current_note}",
+                "Critic": f"Based on this note, suggest possible areas for improvement:\n\n{st.session_state.current_note}"
+            }[ai_actions]
+
+        st.session_state.ai_prompt = system_prompt
+        
+        # Model parameters
+        temperature = st.slider('Temperature', 
+                              min_value=0.01, 
+                              max_value=1.0, 
+                              value=0.7, 
+                              step=0.01, 
+                              key='notes_temperature', 
+                              on_change=reset_agent_state)
+        
+        max_length = st.slider('Max Output Length', 
+                             min_value=32, 
+                             max_value=maxt, 
+                             value=2000, 
+                             step=8, 
+                             key='notes_max_length', 
+                             on_change=reset_agent_state)
+
+        initialize_messages()
+        
+        if "notes_agent" not in st.session_state:
+            st.session_state.agent = initialize_agent(
+                selected_model, 
+                max_length,
+                temperature, 
+                st.session_state.ai_prompt, 
+                [], 
+                None, 
+                None
+            )
+
+        # AI Assistant Input
+        st.subheader("AI Assistant", divider="grey")
+        user_prompt = st.text_area("Ask AI to help with your notes", 
+                                 height=100, 
+                                 key="user_prompt")
+        
+        # Handle AI response when prompt changes
+        if user_prompt:
+            handle_ai_response(user_prompt)
