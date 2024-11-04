@@ -70,6 +70,7 @@ class Agent:
         self.temperature = temperature
         self.model = model
         self.response = None
+        self.tools=tools
 
         self.messages = messages.copy()  # Make a copy of the messages to avoid modifying the original list
 
@@ -96,7 +97,7 @@ class Agent:
         options = {'num_predict': self.max_tokens, 'temperature': self.temperature}
 
         self.messages.append({'role': 'user', 'content': user_msg})
-        self.response = client.chat(self.model, messages=self.messages, stream=False, options=options, format=out_format)
+        self.response = client.chat(self.model, messages=self.messages, stream=False, options=options, format=out_format,tools=self.tools)
         self.messages.append({'role': 'assistant', 'content': self.response['message']['content']})
         logging.info("Chat continued with user message.")
         return self.response['message']['content']

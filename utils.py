@@ -11,6 +11,7 @@ from agents.myLlama import Agent as LlamaAgent
 from agents.myGemini import Agent as GeminiAgent
 from agents.myClaude import Agent as ClaudeAgent
 from agents.myGrok import Agent as GrokAgent
+from agents.myO1 import Agent as O1Agent
 from agents.myGpt import Agent as GptAgent,get_file,convert_file_to_png
 from agents.myPerplexity import Agent as PerplexityAgent
 agent_classes = {
@@ -19,6 +20,7 @@ agent_classes = {
     'claude': ClaudeAgent,
     'gpt': GptAgent,
     'grok':GrokAgent,
+    'o1':O1Agent,
     'perplex':PerplexityAgent,
 }
 
